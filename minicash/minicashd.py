@@ -1,4 +1,3 @@
-import asyncio
 import threading
 import socketserver
 import os
@@ -153,32 +152,6 @@ def stop():
     # exit()
     os._exit(0)
 
-# COMMAND LINE INTERFACE AND SERVER CLASSES
-class SynchronizerProtocol(asyncio.Protocol):
-    def connection_made(self, transport):
-        """
-        Called when a connection is made.
-        The argument is the transport representing the pipe connection.
-        To receive data, wait for data_received() calls.
-        When the connection is closed, connection_lost() is called.
-        """
-        peername = transport.get_extra_info('peername')
-        print('Connection from {}'.format(peername))
-        self.transport = transport
-
-    def data_received(self, data):
-        print(data.decode('utf-8'))
-        self.transport.write(data)
-
-    def connection_lost(self, exc):
-        """
-        Called when the connection is lost or closed.
-        The argument is an exception object or None (the latter
-        meaning a regular EOF is received or the connection was
-        aborted or closed).
-        """
-        print('Connection closed..')
-
 
 class MyCliHandler(socketserver.BaseRequestHandler):
 
@@ -199,14 +172,6 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         self.request.sendall(response.json.encode('utf-8'))
 
 
-# CLIENT AND SERVER THREADS
-def server():
-    loop = asyncio.new_event_loop()
-    server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
-    loop.run_forever()
-    server.close()
-    loop.run_until_complete(server.wait_closed())
-    loop.close()
 
 def cliServer():
     HOST, PORT = "localhost", 2223
@@ -216,9 +181,7 @@ def cliServer():
 
 # MAIN
 def main():
-    serverthread = threading.Thread(target=server)
     cliThread = threading.Thread(target=cliServer)
-    serverthread.start()
     cliThread.start()
 
 if __name__ == '__main__':
