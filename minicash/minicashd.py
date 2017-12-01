@@ -2,7 +2,6 @@ import threading
 import socketserver
 import os
 import argparse
-import configparser
 import json
 import gnupg
 import hashlib
@@ -13,46 +12,46 @@ from daemon.pidfile import PIDLockFile
 
 # Working paths
 HOMEDIR = os.getenv('HOME')
-OPENCASHDIR = os.path.join(HOMEDIR, '.opencash')
-GPGDIR = os.path.join(OPENCASHDIR, '.gnupg')
+MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
+GPGDIR = os.path.join(MINICASHDIR, '.gnupg')
 
 # COMMAND LINE FUNCTIONS
 def init(kwargs):
-    # Create .opencash folder if not existing and enter it
+    # Create .minicash folder if not existing and enter it
     try:
         os.chdir(HOMEDIR)
-        if not os.path.isdir('.opencash'):
-            os.mkdir('.opencash')
-        os.chdir(HOMEDIR + '/.opencash')
+        if not os.path.isdir('.minicash'):
+            os.mkdir('.minicash')
+        os.chdir(HOMEDIR + '/.minicash')
     except OSError as e:
-        return {'Fail': {'Reason':'OSError', 'Message':str(e)}}
+        return {'Fail': {'Reason':'IOError accessing data folder', 'Message':str(e)}}
 
-    # Check for opencash.ini file for the initial configuration
-    if not os.path.isfile('opencash.ini'):
+
+    if not os.path.isfile('config.json'):
+        config = {
+        'PEER_SERVER': {'Ip': '192.168.1.50', 'Port': '9999'},
+        'KEY_SERVERS': { 'adresses': [
+            'pgp.mit.edu',
+            'sks-keyservers.net',
+            'pool.sks-keyservers.net',
+            'eu.pool.sks-keyservers.net'
+            ]}
+        }
+        jsonedConfig = json.dumps(config, indent=4)
         try:
-            config = configparser.ConfigParser()
-            config['PEER_SERVER'] = {
-                'Ip': '192.168.1.50',
-                'Port': '50001'
-            }
-            config['KEY_SERVER'] = {
-                'Ip': 'pgp.mit.edu'
-            }
-        except configparser.Error as e:
-            return {'Fail': {'Reason':'Configparser error', 'Message':str(e)}}
-        try:
-            with open('opencash.ini', 'w') as infile:
-                config.write(infile)
-        except (OSError, configparser.Error) as e:
-            return {'Fail': {'Reason': 'Error accessing opencash.ini', 'Message':str(e)}}
+            with open('config.json', 'w') as conffile:
+                conffile.write(jsonedConfig)
+        except OSError as e:
+            return {'Fail': {'Reason':'Error writting initial configuration', 'Message': str(e)}}
+
 
     # Take care of key files and .gnupg folder
     try:
-        if not os.path.isfile('private_peers.json'):
-            with open('private_peers.json', 'w') as infile:
+        if not os.path.isfile('private_keys.json'):
+            with open('private_keys.json', 'w') as infile:
                 infile.write('{}')
-        if not os.path.isfile('public_peers.json'):
-            with open('public_peers.json', 'w') as infile:
+        if not os.path.isfile('peers.json'):
+            with open('peers.json', 'w') as infile:
                 infile.write('{}')
         if not os.path.isdir('.gnupg'):
             os.mkdir('.gnupg')
@@ -83,61 +82,57 @@ def addKey(kwargs):
     if not result.startswith('00000'):
         return {'Fail':{'Reason':'Wrong proof of work'}}
 
-    # Add the key to the private_peers.json
-    privatePeers = ''
+    # Add the key to the private_keys.json
+    privateKeys = ''
     try:
-        with open(os.path.join(OPENCASHDIR, 'private_peers.json'), 'r+') as privPeersFile:
-            privatePeers = privPeersFile.read()
+        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r+') as privPeersFile:
+            privateKeys = privPeersFile.read()
             try:
-                privatePeers = json.loads(privatePeers)
-                privatePeers[fingerprint] = proof
-                privatePeers = json.dumps(privatePeers ,indent=4)
+                privateKeys = json.loads(privateKeys)
+                privateKeys[fingerprint] = proof
+                privateKeys = json.dumps(privateKeys ,indent=4)
             except json.JSONDecodeError as e:
-                return {'Fail':{'Reason':'JSONDecodeError (private_peers.json wrong format)', 'Message': str(e)}}
+                return {'Fail':{'Reason':'JSONDecodeError (private_keys.json wrong format)', 'Message': str(e)}}
             privPeersFile.seek(0,0)
-            privPeersFile.write(privatePeers)
+            privPeersFile.write(privateKeys)
     except OSError as e:
         return {'Fail':{'Reason':'OSError', 'Message':str(e)}}
 
-    if not kwargs.upload:
+    if not kwargs['upload']:
         return {'Success':{}}
+    
     # Upload key to the key server
-    config = configparser.ConfigParser()
     try:
-        config.read(os.path.join(OPENCASHDIR, 'opencash.ini'))
-    except (OSError, configparser.Error) as e:
-        return {'Partial-Fail': {'Reason':'Problem uploading key to server '
-                'but key added to private_peers.json', 'Message':str(e)}}
-    try:
-        keyserver = config['KEY_SERVER']['Ip']
-    except configparser.Error as e:
-        return {'Partial-Fail': {'Reason':'Problem uploading key to server '
-                'but key added to private_peers.json', 'Message':str(e)}}
-    response = gpg.send_keys(keyserver, fingerprint)
-    response = response.stderr
-    failureWords = ['ERROR', 'FAILURE']
-    uploadfail = False
-    if any(x in response for x in failureWords):
-        return {'Partial-Fail': {'Reason':'Problem uploading key to server '
-                'but key added to private_peers.json'}}
-    else:
-        return {'Success': {}}
+        with open('config.json', 'r') as configfile:
+            jsonconfig = json.load(configfile)
+    except (OSError, json.JSONDecodeError) as e:
+        return {'Partial-Fail': {'Reason':'Problem reading configuration file', 'Message':str(e)}}
 
+    servers = jsonconfig['KEY_SERVERS']['adresses']
+
+    for keyserver in servers:
+        response = gpg.send_keys(keyserver, fingerprint)
+        response = response.stderr
+        failureWords = ['ERROR', 'FAILURE']
+        if not any(x in response for x in failureWords):
+            return {'Success': {}}
+    return {'Partial-Fail': {'Reason':'Problem uploading key to server '
+            'but key added to private_keys.json'}}
 
 def listNodes(kwargs):
     return kwargs
 
 def listLocalKeys(kwargs):
     try:
-        with open(os.path.join(OPENCASHDIR, 'private_peers.json'), 'r+') as privPeersFile:
-            privatePeers = privPeersFile.read()
+        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r+') as privPeersFile:
+            privateKeys = privPeersFile.read()
             try:
-                privatePeers = json.loads(privatePeers)
+                privateKeys = json.loads(privateKeys)
             except json.JSONDecodeError as e:
-                return {'Fail':{'Reason':'JSONDecodeError (private_peers.json wrong format)', 'Message': str(e)}}
+                return {'Fail':{'Reason':'JSONDecodeError (private_keys.json wrong format)', 'Message': str(e)}}
     except OSError as e:
         return {'Fail':{'Reason':'OSError', 'Message':str(e)}}
-    return {'Success': privatePeers}
+    return {'Success': privateKeys}
 
 def getBalances(kwargs):
     return kwargs
@@ -188,17 +183,23 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--daemon', action='store_true', help='Run the program as daemon')
     args = parser.parse_args()
-    init({})
+    print(init({}))
+    # Check first if we have at least one secret key
+
+
+    # Connect to peer server, introduce our keys, get other peers ips and send hello to all of them
+
+
     if not args.daemon:
         main()
     else:
         try:
             dcontext = DaemonContext(
-                working_directory=OPENCASHDIR,
-                pidfile=PIDLockFile('/tmp/opencash.pid'),
+                working_directory=MINICASHDIR,
+                pidfile=PIDLockFile('/tmp/minicash.pid'),
                 umask=0o022)
-            dcontext.stderr = open(os.path.join(OPENCASHDIR, 'opencash.err'), 'w+')
-            dcontext.stdout = open(os.path.join(OPENCASHDIR, 'opencash.log'), 'w+')
+            dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
+            dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
             with dcontext:
                 main()
         except DaemonOSEnvironmentError as e:
