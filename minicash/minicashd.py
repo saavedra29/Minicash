@@ -15,6 +15,11 @@ HOMEDIR = os.getenv('HOME')
 MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
 GPGDIR = os.path.join(MINICASHDIR, '.gnupg')
 
+# Global variables
+G_privateKeys = {}
+G_configuration = {}
+G_peers = {}
+
 # COMMAND LINE FUNCTIONS
 def init(kwargs):
     # Create .minicash folder if not existing and enter it
@@ -26,7 +31,7 @@ def init(kwargs):
     except OSError as e:
         return {'Fail': {'Reason':'IOError accessing data folder', 'Message':str(e)}}
 
-
+    # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
         'PEER_SERVER': {'Ip': '192.168.1.50', 'Port': '9999'},
@@ -43,7 +48,6 @@ def init(kwargs):
                 conffile.write(jsonedConfig)
         except OSError as e:
             return {'Fail': {'Reason':'Error writting initial configuration', 'Message': str(e)}}
-
 
     # Take care of key files and .gnupg folder
     try:
@@ -65,6 +69,7 @@ def init(kwargs):
 def addKey(kwargs):
     fingerprint = kwargs['key']
     proof = kwargs['pow']
+
     # Check if secret key doesn't exist in keyring
     gpg = gnupg.GPG(gnupghome=GPGDIR)
     foundkey = None
@@ -72,7 +77,8 @@ def addKey(kwargs):
         if key['keyid'] == fingerprint:
             foundkey = key
     if foundkey == None:
-        return {'Fail': {'Reason': 'Key not found in database'}}
+        return {'Fail': {'Reason': 'Key not found in gpg database'}}
+
     # Check if pow is invalid for the key
     keyhash = hashlib.sha256()
     fingerproof = fingerprint + ':' + proof
@@ -82,33 +88,16 @@ def addKey(kwargs):
     if not result.startswith('00000'):
         return {'Fail':{'Reason':'Wrong proof of work'}}
 
-    # Add the key to the private_keys.json
-    privateKeys = ''
-    try:
-        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r+') as privPeersFile:
-            privateKeys = privPeersFile.read()
-            try:
-                privateKeys = json.loads(privateKeys)
-                privateKeys[fingerprint] = proof
-                privateKeys = json.dumps(privateKeys ,indent=4)
-            except json.JSONDecodeError as e:
-                return {'Fail':{'Reason':'JSONDecodeError (private_keys.json wrong format)', 'Message': str(e)}}
-            privPeersFile.seek(0,0)
-            privPeersFile.write(privateKeys)
-    except OSError as e:
-        return {'Fail':{'Reason':'OSError', 'Message':str(e)}}
+    # Add the key to the privateKeys
+    global G_privateKeys
+    G_privateKeys[fingerprint] = proof
 
+    # Return if uploading to server is not requested
     if not kwargs['upload']:
         return {'Success':{}}
     
     # Upload key to the key server
-    try:
-        with open('config.json', 'r') as configfile:
-            jsonconfig = json.load(configfile)
-    except (OSError, json.JSONDecodeError) as e:
-        return {'Partial-Fail': {'Reason':'Problem reading configuration file', 'Message':str(e)}}
-
-    servers = jsonconfig['KEY_SERVERS']['adresses']
+    servers = G_configuration['KEY_SERVERS']['adresses']
 
     for keyserver in servers:
         response = gpg.send_keys(keyserver, fingerprint)
@@ -123,16 +112,7 @@ def listNodes(kwargs):
     return kwargs
 
 def listLocalKeys(kwargs):
-    try:
-        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r+') as privPeersFile:
-            privateKeys = privPeersFile.read()
-            try:
-                privateKeys = json.loads(privateKeys)
-            except json.JSONDecodeError as e:
-                return {'Fail':{'Reason':'JSONDecodeError (private_keys.json wrong format)', 'Message': str(e)}}
-    except OSError as e:
-        return {'Fail':{'Reason':'OSError', 'Message':str(e)}}
-    return {'Success': privateKeys}
+    return {'Success': G_privateKeys}
 
 def getBalances(kwargs):
     return kwargs
@@ -144,15 +124,23 @@ def reloadConf(kwargs):
     return kwargs
 
 def stop():
-    # exit()
+    # Save memory data to filesystem
+    try:
+        with open(os.path.join(MINICASHDIR, 'peers.json') , 'w') as peersOutFile:
+            peersOutFile.write(json.dumps(G_peers))
+        with open(os.path.join(MINICASHDIR, 'private_keys.json') , 'w') as privateKeysOutFile:
+            privateKeysOutFile.write(json.dumps(G_privateKeys))
+    except OSError as e:
+        print('While exiting program could not write memory data to peers.json or private_keys.json file: {}'.format(e))
     os._exit(0)
 
 
+# Command line interface handler
 class MyCliHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         data = self.request.recv(64000)
-        # Dispatchers
+    
         dispatcher.add_method(init)
         dispatcher.add_method(listLocalKeys)
         dispatcher.add_method(listNodes)
@@ -183,9 +171,35 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--daemon', action='store_true', help='Run the program as daemon')
     args = parser.parse_args()
-    print(init({}))
-    # Check first if we have at least one secret key
 
+    # Initialize data folder
+    print(init({}))
+
+    ## Load the configuration
+    try:
+        with open(os.path.join(MINICASHDIR, 'config.json') , 'r') as configfile:
+            G_configuration = json.load(configfile)    
+    except (OSError, json.JSONDecodeError) as e:
+        print("Error while loading peers.json file to memory")
+        exit()
+
+    ## Load the private keys
+    try:
+        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r') as privateKeysFile:
+            G_privateKeys = json.load(privateKeysFile)
+    except (OSError, json.JSONDecodeError) as e:
+        print("Error while loading private_keys.json file to memory")
+        exit()
+
+    ## Load the peers
+    try:
+        with open(os.path.join(MINICASHDIR, 'peers.json'), 'r') as peersFile:
+            G_peers = json.load(peersFile)
+    except (OSError, json.JSONDecodeError) as e:
+        print("Error while loading peers.json file to memory")
+        exit()   
+
+    # Check first if we have at least one secret key
 
     # Connect to peer server, introduce our keys, get other peers ips and send hello to all of them
 
