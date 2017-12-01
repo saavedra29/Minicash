@@ -15,9 +15,9 @@ class PeerHandler(socketserver.BaseRequestHandler):
         if not 'Type' in peerRequest:
             self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'No Type entry'}).encode('utf-8'))
             return
-        if peerRequest['Type'] == 'C_REG':
+        if peerRequest['Type'] == 'REG':
             update = False
-        elif peerRequest['Type'] == 'C_REGUP':
+        elif peerRequest['Type'] == 'REGUP':
             update = True
         else:
             self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'Wrong request type'}).encode('utf-8'))
