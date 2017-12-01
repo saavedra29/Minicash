@@ -1,5 +1,6 @@
 import threading
 import socketserver
+import socket
 import os
 import argparse
 import json
@@ -109,7 +110,7 @@ def addKey(kwargs):
             'but key added to private_keys.json'}}
 
 def listNodes(kwargs):
-    return kwargs
+    return {'Success': G_peers}
 
 def listLocalKeys(kwargs):
     return {'Success': G_privateKeys}
@@ -180,7 +181,7 @@ if __name__ == '__main__':
         with open(os.path.join(MINICASHDIR, 'config.json') , 'r') as configfile:
             G_configuration = json.load(configfile)    
     except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading peers.json file to memory")
+        print("Error while loading peers.json file to memory. Exiting..")
         exit()
 
     ## Load the private keys
@@ -188,7 +189,7 @@ if __name__ == '__main__':
         with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r') as privateKeysFile:
             G_privateKeys = json.load(privateKeysFile)
     except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading private_keys.json file to memory")
+        print("Error while loading private_keys.json file to memory. Exiting..")
         exit()
 
     ## Load the peers
@@ -196,12 +197,41 @@ if __name__ == '__main__':
         with open(os.path.join(MINICASHDIR, 'peers.json'), 'r') as peersFile:
             G_peers = json.load(peersFile)
     except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading peers.json file to memory")
+        print("Error while loading peers.json file to memory. Exiting..")
         exit()   
 
     # Check first if we have at least one secret key
+    if len(G_privateKeys) == 0:
+        print("You first have to enter a key before running the server. Exiting..")
+        exit()
 
-    # Connect to peer server, introduce our keys, get other peers ips and send hello to all of them
+    # Introduce our keys to the peer server and get other peers ips
+    request = {'Type':'REGUP', 'Keys':[]}
+    for key in G_privateKeys.keys():
+        request['Keys'].append(key)
+    request = json.dumps(request).encode('utf-8')
+
+    peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        peersRequestSock.connect((G_configuration['PEER_SERVER']['Ip'], int(G_configuration['PEER_SERVER']['Port'])))
+        peersRequestSock.sendall(request)
+        response = str(peersRequestSock.recv(1024), 'utf-8')
+    except OSError as e:
+        print('Problem connecting to the peer server: {}\nExiting..'.format(e))
+        exit()
+
+    try:
+        response = json.loads(response)
+    except json.JSONDecodeError as e:
+        print('Json error on peers server response: {}\nExiting..'.format(e))
+        exit()
+
+    if response['RESPONSE'] == 'Fail':
+        print('Could not receive valid data from the peer server\n'
+              '{}\nExiting..'.format(response['Reason']))
+        exit()
+
+    G_peers = response['Maps']
 
 
     if not args.daemon:
