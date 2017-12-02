@@ -22,7 +22,7 @@ G_configuration = {}
 G_peers = {}
 
 # COMMAND LINE FUNCTIONS
-def init(kwargs):
+def init():
     # Create .minicash folder if not existing and enter it
     try:
         os.chdir(HOMEDIR)
@@ -170,11 +170,15 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--daemon', action='store_true', help='Run the program as daemon')
+    parser.add_argument('--initialkey', nargs=2, metavar=('KEY', 'POW'), 
+        help='Fingerprint and proof of work of the initial key')
     args = parser.parse_args()
 
     # Initialize data folder
-    print(init({}))
+    dataCreation = init()
+    if 'Fail' in dataCreation:
+        print(dataCreation['Fail']['Reason'] + '\nExiting..')
+        exit()
 
     ## Load the configuration
     try:
@@ -182,14 +186,6 @@ if __name__ == '__main__':
             G_configuration = json.load(configfile)    
     except (OSError, json.JSONDecodeError) as e:
         print("Error while loading peers.json file to memory. Exiting..")
-        exit()
-
-    ## Load the private keys
-    try:
-        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r') as privateKeysFile:
-            G_privateKeys = json.load(privateKeysFile)
-    except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading private_keys.json file to memory. Exiting..")
         exit()
 
     ## Load the peers
@@ -200,10 +196,29 @@ if __name__ == '__main__':
         print("Error while loading peers.json file to memory. Exiting..")
         exit()   
 
+    ## Load the private keys
+    try:
+        with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r') as privateKeysFile:
+            G_privateKeys = json.load(privateKeysFile)
+    except (OSError, json.JSONDecodeError) as e:
+        print("Error while loading private_keys.json file to memory. Exiting..")
+        exit()
+
+    # Add initial key and proof of work if found
+    if not args.initialkey == None:
+        result = addKey({'key': args.initialkey[0], 'pow': args.initialkey[1], 'upload': True})
+        if 'Fail' in result.keys():
+            print(result['Fail']['Reason'] + '\nExiting..')
+            exit()
+        elif 'Partial-Fail' in result.keys():
+            print(result['Partial-Fail']['Reason'] + '\nContinuing..')
+
     # Check first if we have at least one secret key
     if len(G_privateKeys) == 0:
-        print("You first have to enter a key before running the server. Exiting..")
+        print("You first have to enter a key before running the server."
+              "\nUse the --initialkey argument to start the server. Exiting..")
         exit()
+
 
     # Introduce our keys to the peer server and get other peers ips
     request = {'Type':'REGUP', 'Keys':[]}
@@ -233,19 +248,16 @@ if __name__ == '__main__':
 
     G_peers = response['Maps']
 
-
-    if not args.daemon:
-        main()
-    else:
-        try:
-            dcontext = DaemonContext(
-                working_directory=MINICASHDIR,
-                pidfile=PIDLockFile('/tmp/minicash.pid'),
-                umask=0o022)
-            dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
-            dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
-            with dcontext:
-                main()
-        except DaemonOSEnvironmentError as e:
-            print('ERROR: {}'.format(e))
-            exit()
+    try:
+        dcontext = DaemonContext(
+            working_directory=MINICASHDIR,
+            pidfile=PIDLockFile('/tmp/minicash.pid'),
+            umask=0o022)
+        dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
+        dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
+        print('Staring the daemon..')
+        with dcontext:
+            main()
+    except DaemonOSEnvironmentError as e:
+        print('ERROR: {}'.format(e))
+        exit()
