@@ -10,24 +10,29 @@ class PeerHandler(socketserver.BaseRequestHandler):
         try:
             peerRequest = json.loads(self.request.recv(1024).decode('utf-8'))
         except json.JSONDecodeError as e:
-            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'JsonDecode error'}).encode('utf-8'))
+            self.request.sendall(json.dumps({'RESPONSE': 'Fail', \
+                                             'Reason': 'JsonDecode error'}).encode('utf-8'))
             return
         if not 'Type' in peerRequest:
-            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'No Type entry'}).encode('utf-8'))
+            self.request.sendall(json.dumps({'RESPONSE': 'Fail', \
+                                 'Reason': 'No Type entry'}).encode('utf-8'))
             return
         if peerRequest['Type'] == 'REG':
             update = False
         elif peerRequest['Type'] == 'REGUP':
             update = True
         else:
-            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'Wrong request type'}).encode('utf-8'))
+            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 
+                                             'Reason': 'Wrong request type'}).encode('utf-8'))
             return
 
         if not 'Keys' in peerRequest:
-            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'No Keys entry'}).encode('utf-8'))
+            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': \
+                                             'No Keys entry'}).encode('utf-8'))
             return
         if not type(peerRequest['Keys']) == list:
-            self.request.sendall(json.dumps({'RESPONSE': 'Fail', 'Reason': 'Keys element is not list'}).encode('utf-8'))
+            self.request.sendall(json.dumps({'RESPONSE': 'Fail', \
+                                            'Reason': 'Keys element is not list'}).encode('utf-8'))
             return
         clientAddress = self.client_address[0]
         partial = False

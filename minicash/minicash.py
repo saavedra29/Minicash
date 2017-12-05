@@ -89,7 +89,8 @@ init_cmd = subparsers.add_parser('init', help='Create new, fresh file structure'
 init_cmd.set_defaults(func=init)
 # list-nodes subcommand
 listnodes_cmd = subparsers.add_parser('listnodes', help='List all online nodes in the network')
-listnodes_cmd.add_argument('--with-keys', action='store_true', help='Show also the keys assigned to them')
+listnodes_cmd.add_argument('--with-keys', action='store_true', \
+                            help='Show also the keys assigned to them')
 listnodes_cmd.set_defaults(func=listNodes)
 # listlocalkeys subcommand
 listlocalkeys_cmd = subparsers.add_parser('listlocalkeys', help='List all local keys fingerprints')

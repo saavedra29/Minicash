@@ -104,3 +104,4 @@ ENV/
 peersFile.txt
 todo.txt
 docs.txt
+minicash/utils/client.py

@@ -132,7 +132,8 @@ def stop():
         with open(os.path.join(MINICASHDIR, 'private_keys.json') , 'w') as privateKeysOutFile:
             privateKeysOutFile.write(json.dumps(G_privateKeys))
     except OSError as e:
-        print('While exiting program could not write memory data to peers.json or private_keys.json file: {}'.format(e))
+        print('While exiting program could not write memory data to peers.json or \
+               private_keys.json file: {}'.format(e))
     os._exit(0)
 
 
@@ -228,7 +229,8 @@ if __name__ == '__main__':
 
     peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        peersRequestSock.connect((G_configuration['PEER_SERVER']['Ip'], int(G_configuration['PEER_SERVER']['Port'])))
+        peersRequestSock.connect((G_configuration['PEER_SERVER']['Ip'], \
+                                  int(G_configuration['PEER_SERVER']['Port'])))
         peersRequestSock.sendall(request)
         response = str(peersRequestSock.recv(1024), 'utf-8')
     except OSError as e:
@@ -267,3 +269,4 @@ if __name__ == '__main__':
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         exit()
+
