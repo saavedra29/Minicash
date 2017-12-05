@@ -103,3 +103,4 @@ ENV/
 # custom files
 peersFile.txt
 todo.txt
+docs.txt

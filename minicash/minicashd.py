@@ -35,7 +35,7 @@ def init():
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-        'PEER_SERVER': {'Ip': '192.168.1.50', 'Port': '9999'},
+        'PEER_SERVER': {'Ip': '192.168.2.254', 'Port': '9999'},
         'KEY_SERVERS': { 'adresses': [
             'pgp.mit.edu',
             'sks-keyservers.net',
@@ -234,6 +234,9 @@ if __name__ == '__main__':
     except OSError as e:
         print('Problem connecting to the peer server: {}\nExiting..'.format(e))
         exit()
+    finally:
+        peersRequestSock.shutdown()
+        peersRequestSock.close()
 
     try:
         response = json.loads(response)
@@ -247,6 +250,9 @@ if __name__ == '__main__':
         exit()
 
     G_peers = response['Maps']
+
+    # Send hello to the other peers
+    
 
     try:
         dcontext = DaemonContext(
