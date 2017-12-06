@@ -11,18 +11,16 @@ from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
 from daemon.pidfile import PIDLockFile
 
-# Working paths
-HOMEDIR = os.getenv('HOME')
-MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
-GPGDIR = os.path.join(MINICASHDIR, '.gnupg')
-
 # Global variables
 G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
+HOMEDIR = ''
+MINICASHDIR = ''
+GPGDIR = ''
 
 # COMMAND LINE FUNCTIONS
-def init():
+def init(kwargs):
     # Create .minicash folder if not existing and enter it
     try:
         os.chdir(HOMEDIR)
@@ -165,21 +163,48 @@ def cliServer():
         server.serve_forever()
 
 # MAIN
-def main():
+def runDaemon():
     cliThread = threading.Thread(target=cliServer)
     cliThread.start()
 
-if __name__ == '__main__':
+
+def main():
+    # Command line arguments
     parser = argparse.ArgumentParser()
+    # Initial key adding for the node to run
     parser.add_argument('--initialkey', nargs=2, metavar=('KEY', 'POW'), 
         help='Fingerprint and proof of work of the initial key')
+    # Quick-start data folder and key generation for testing purposes
+    parser.add_argument('--quickstart', nargs=2, metavar=('HOMEPATH', 'KEYSNUM'), 
+        help='Starts creating data folder at PATH path and KEYSNUM (1-1000) number of \
+              random keys')
+    
+    # Read the arguments of the command line
     args = parser.parse_args()
 
     # Initialize data folder
-    dataCreation = init()
+    global HOMEDIR
+    global MINICASHDIR
+    global GPGDIR
+    if args.quickstart != None:
+        HOMEDIR = args.quickstart[0]
+    else:
+        HOMEDIR = os.getenv('HOME')
+    MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
+    GPGDIR = os.path.join(MINICASHDIR, '.gnupg')
+    dataCreation = init({})
     if 'Fail' in dataCreation:
         print(dataCreation['Fail']['Reason'] + '\nExiting..')
         exit()
+
+    # Create the quickstart keys if requested
+    if args.quickstart != None:
+        keysnum = int(args.quickstart[1])
+        if keysnum < 1 or keysnum > 1000:
+            print('Provide a number of random keys between 1 and 1000')
+            exit()
+    #@continue
+            
 
     ## Load the configuration
     try:
@@ -265,8 +290,11 @@ if __name__ == '__main__':
         dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
         print('Staring the daemon..')
         with dcontext:
-            main()
+            runDaemon()
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         exit()
 
+
+if __name__ == '__main__':
+    main()
