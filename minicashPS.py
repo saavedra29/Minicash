@@ -1,6 +1,7 @@
 import json
 import socketserver
 import re
+import argparse
 
 peersMap = {}
 
@@ -69,6 +70,9 @@ class PeerHandler(socketserver.BaseRequestHandler):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run-locally', action='store_true',
+                        help='Be accesible only from localhost')
     # Load from the memory existing ip peers file
     try:
         with open('peersFile.txt', 'r') as peersFile:
@@ -81,7 +85,12 @@ if __name__ == '__main__':
         print('IOError opening peersFile.txt: {}'.format(e))
         exit()
 
-    host, port = '', 9999
+    args = parser.parse_args()
+    if args.run_locally:
+        host = '127.0.0.1'
+    else:
+        host = ''
+    port = 9999
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer((host, port), PeerHandler) as server:
         server.serve_forever()
