@@ -33,7 +33,7 @@ def init(kwargs):
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-        'PEER_SERVER': {'Ip': '192.168.2.254', 'Port': '9999'},
+        'PEER_SERVER': {'Ip': '192.168.0.254', 'Port': '9999'},
         'KEY_SERVERS': { 'adresses': [
             'pgp.mit.edu',
             'sks-keyservers.net',
@@ -90,6 +90,7 @@ def addKey(kwargs):
     # Add the key to the privateKeys
     global G_privateKeys
     G_privateKeys[fingerprint] = proof
+    print('Key added to database, G_privateKeys: {}'.format(G_privateKeys))
 
     # Return if uploading to server is not requested
     if not kwargs['upload']:
@@ -162,7 +163,6 @@ def cliServer():
     with socketserver.TCPServer((HOST, PORT), MyCliHandler) as server:
         server.serve_forever()
 
-# MAIN
 def runDaemon():
     cliThread = threading.Thread(target=cliServer)
     cliThread.start()
@@ -186,6 +186,10 @@ def main():
     global HOMEDIR
     global MINICASHDIR
     global GPGDIR
+    global G_privateKeys
+    global G_configuration
+    global G_peers
+
     if args.quickstart != None:
         HOMEDIR = args.quickstart[0]
     else:
@@ -196,15 +200,6 @@ def main():
     if 'Fail' in dataCreation:
         print(dataCreation['Fail']['Reason'] + '\nExiting..')
         exit()
-
-    # Create the quickstart keys if requested
-    if args.quickstart != None:
-        keysnum = int(args.quickstart[1])
-        if keysnum < 1 or keysnum > 1000:
-            print('Provide a number of random keys between 1 and 1000')
-            exit()
-    #@continue
-            
 
     ## Load the configuration
     try:
@@ -230,6 +225,36 @@ def main():
         print("Error while loading private_keys.json file to memory. Exiting..")
         exit()
 
+    # Create and add the quickstart keys if requested
+    if args.quickstart != None:
+        keysnum = int(args.quickstart[1])
+        try:
+            gpg = gnupg.GPG(gnupghome=GPGDIR)
+        except Exception as e:
+            print('Error creating quickstart keys: {}'.format(e))
+        if keysnum < 1 or keysnum > 1000:
+            print('Provide a number of random keys between 1 and 1000')
+            exit()
+        from utils.pow import POWGenerator
+        for num in range(keysnum):
+            # Create key
+            key = gpg.gen_key(gpg.gen_key_input(key_type='RSA',
+                              key_length=1024,
+                              passphrase='mylongminicashsillypassphrase'))
+            fingerprint = key.fingerprint[24:]
+            print('key {} created'.format(num))
+            # Create proof of work for the key (difficulty: 5, cores: maximum 8)
+            powGenerator = POWGenerator(fingerprint, 5, 8)
+            result = powGenerator.getSolution()
+            print('proof of work created')
+            # Add the key
+            addKeyRes = addKey({'key':fingerprint,'pow':result,'upload':False})
+            if not 'Success' in addKeyRes:
+                print('Problem adding the key')
+                exit()
+            print('key added')
+            
+
     # Add initial key and proof of work if found
     if not args.initialkey == None:
         result = addKey({'key': args.initialkey[0], 'pow': args.initialkey[1], 'upload': True})
@@ -240,6 +265,7 @@ def main():
             print(result['Partial-Fail']['Reason'] + '\nContinuing..')
 
     # Check first if we have at least one secret key
+    print('G_privateKeys: {}'.format(G_privateKeys))
     if len(G_privateKeys) == 0:
         print("You first have to enter a key before running the server."
               "\nUse the --initialkey argument to start the server. Exiting..")
@@ -253,16 +279,21 @@ def main():
     request = json.dumps(request).encode('utf-8')
 
     peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # peersRequestSock.settimeout(5)
+    serverIp = G_configuration['PEER_SERVER']['Ip']
+    serverPort = G_configuration['PEER_SERVER']['Port']
+    print('connecting to server {}:{}'.format(serverIp, serverPort))
     try:
         peersRequestSock.connect((G_configuration['PEER_SERVER']['Ip'], \
                                   int(G_configuration['PEER_SERVER']['Port'])))
         peersRequestSock.sendall(request)
+        peersRequestSock.shutdown(socket.SHUT_WR)
         response = str(peersRequestSock.recv(1024), 'utf-8')
+        peersRequestSock.shutdown(socket.SHUT_RD)
     except OSError as e:
         print('Problem connecting to the peer server: {}\nExiting..'.format(e))
         exit()
     finally:
-        peersRequestSock.shutdown()
         peersRequestSock.close()
 
     try:
