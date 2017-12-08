@@ -33,7 +33,7 @@ def init(kwargs):
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-        'PEER_SERVER': {'Ip': '192.168.0.254', 'Port': '9999'},
+        'PEER_SERVER': {'Ip': '192.168.1.50', 'Port': '9999'},
         'KEY_SERVERS': { 'adresses': [
             'pgp.mit.edu',
             'sks-keyservers.net',
@@ -90,7 +90,6 @@ def addKey(kwargs):
     # Add the key to the privateKeys
     global G_privateKeys
     G_privateKeys[fingerprint] = proof
-    print('Key added to database, G_privateKeys: {}'.format(G_privateKeys))
 
     # Return if uploading to server is not requested
     if not kwargs['upload']:
@@ -257,6 +256,9 @@ def main():
 
     # Add initial key and proof of work if found
     if not args.initialkey == None:
+        if len(G_privateKeys) != 0:
+            print('There is already a private key. No need to run this command.')
+            exit()
         result = addKey({'key': args.initialkey[0], 'pow': args.initialkey[1], 'upload': True})
         if 'Fail' in result.keys():
             print(result['Fail']['Reason'] + '\nExiting..')
@@ -265,7 +267,7 @@ def main():
             print(result['Partial-Fail']['Reason'] + '\nContinuing..')
 
     # Check first if we have at least one secret key
-    print('G_privateKeys: {}'.format(G_privateKeys))
+    # print('G_privateKeys: {}'.format(G_privateKeys))
     if len(G_privateKeys) == 0:
         print("You first have to enter a key before running the server."
               "\nUse the --initialkey argument to start the server. Exiting..")

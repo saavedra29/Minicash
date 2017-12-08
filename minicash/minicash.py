@@ -30,8 +30,8 @@ def getPayload(command, params):
 def runCommand(commandName, args):
     params = dict(vars(args))
     _ = params.pop('func')
+    datatosend = json.dumps(getPayload(commandName, [params]))
     try:
-        datatosend = json.dumps(getPayload(commandName, [params]))
         response = json.loads(getResponse(datatosend))
     except json.decoder.JSONDecodeError as e:
         return {'Fail':{'Reason':'JSONDecodeError', 'Message':e}}
@@ -128,4 +128,7 @@ pay_cmd.set_defaults(func=pay)
 
 if __name__=='__main__':
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except AttributeError:
+        print('You haven\'t entered any subcommand or argument')
