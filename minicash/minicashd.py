@@ -9,7 +9,6 @@ import hashlib
 from jsonrpc import JSONRPCResponseManager, dispatcher
 from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
-from daemon.pidfile import PIDLockFile
 
 # Global variables
 G_privateKeys = {}
@@ -132,6 +131,7 @@ def stop():
     except OSError as e:
         print('While exiting program could not write memory data to peers.json or \
                private_keys.json file: {}'.format(e))
+    os.unlink(pidpath)
     os._exit(0)
 
 
@@ -317,7 +317,6 @@ def main():
     try:
         dcontext = DaemonContext(
             working_directory=MINICASHDIR,
-            pidfile=PIDLockFile('/tmp/minicash.pid'),
             umask=0o022)
         dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
         dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
@@ -330,4 +329,11 @@ def main():
 
 
 if __name__ == '__main__':
+    pid = str(os.getpid())
+    pidpath = "/tmp/minicashd.pid"
+    if os.path.isfile(pidpath):
+        print('{} already exists, exiting..'.format(pidpath))
+        exit()
+    with open(pidpath, 'w') as pidfile:
+        pidfile.write(pid)
     main()
