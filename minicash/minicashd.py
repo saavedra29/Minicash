@@ -32,7 +32,7 @@ def init(kwargs):
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-        'PEER_SERVER': {'Ip': '192.168.1.50', 'Port': '9999'},
+        'PEER_SERVER': {'Ip': '192.168.1.20', 'Port': '9999'},
         'KEY_SERVERS': { 'adresses': [
             'pgp.mit.edu',
             'sks-keyservers.net',
@@ -170,13 +170,28 @@ def runDaemon():
 def main():
     # Command line arguments
     parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='command')
+    initialkey_cmd = subparsers.add_parser('initialkey', help='Creation of the first (oblicgatory \
+                                            key')
     # Initial key adding for the node to run
-    parser.add_argument('--initialkey', nargs=2, metavar=('KEY', 'POW'), 
-        help='Fingerprint and proof of work of the initial key')
+    initialkey_cmd.add_argument('key', help='The key\'s fingerprint')
+    initialkey_cmd.add_argument('pow', help='The key\'s proof of work')
+
+
     # Quick-start data folder and key generation for testing purposes
-    parser.add_argument('--quickstart', nargs=2, metavar=('HOMEPATH', 'KEYSNUM'), 
-        help='Starts creating data folder at PATH path and KEYSNUM (1-1000) number of \
-              random keys')
+    quickstart_cmd = subparsers.add_parser('quickstart', help='Starts creating data folder at \
+                                            PATH path and KEYSNUM (1-1000) number of \
+                                            random keys')
+    quickstart_cmd.add_argument('path', help='The path of the new data folder')
+    quickstart_cmd.add_argument('keysnum', help='The number of random keys to create')
+
+    ## Initial key adding for the node to run
+    #parser.add_argument('--initialkey', nargs=2, metavar=('KEY', 'POW'), 
+    #    help='Fingerprint and proof of work of the initial key')
+    ## Quick-start data folder and key generation for testing purposes
+    #parser.add_argument('--quickstart', nargs=2, metavar=('HOMEPATH', 'KEYSNUM'), 
+    #    help='Starts creating data folder at PATH path and KEYSNUM (1-1000) number of \
+    #          random keys')
     
     # Read the arguments of the command line
     args = parser.parse_args()
@@ -189,8 +204,8 @@ def main():
     global G_configuration
     global G_peers
 
-    if args.quickstart != None:
-        HOMEDIR = args.quickstart[0]
+    if args.command == 'quickstart':
+        HOMEDIR = args.path
     else:
         HOMEDIR = os.getenv('HOME')
     MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
@@ -198,7 +213,7 @@ def main():
     dataCreation = init({})
     if 'Fail' in dataCreation:
         print(dataCreation['Fail']['Reason'] + '\nExiting..')
-        exit()
+        stop()
 
     ## Load the configuration
     try:
@@ -206,7 +221,7 @@ def main():
             G_configuration = json.load(configfile)    
     except (OSError, json.JSONDecodeError) as e:
         print("Error while loading peers.json file to memory. Exiting..")
-        exit()
+        stop()
 
     ## Load the peers
     try:
@@ -214,7 +229,7 @@ def main():
             G_peers = json.load(peersFile)
     except (OSError, json.JSONDecodeError) as e:
         print("Error while loading peers.json file to memory. Exiting..")
-        exit()   
+        stop()   
 
     ## Load the private keys
     try:
@@ -222,18 +237,18 @@ def main():
             G_privateKeys = json.load(privateKeysFile)
     except (OSError, json.JSONDecodeError) as e:
         print("Error while loading private_keys.json file to memory. Exiting..")
-        exit()
+        stop()
 
     # Create and add the quickstart keys if requested
-    if args.quickstart != None:
-        keysnum = int(args.quickstart[1])
+    if args.command == 'quickstart':
+        keysnum = int(args.keysnum)
         try:
             gpg = gnupg.GPG(gnupghome=GPGDIR)
         except Exception as e:
             print('Error creating quickstart keys: {}'.format(e))
         if keysnum < 1 or keysnum > 1000:
             print('Provide a number of random keys between 1 and 1000')
-            exit()
+            stop()
         from utils.pow import POWGenerator
         for num in range(keysnum):
             # Create key
@@ -250,19 +265,19 @@ def main():
             addKeyRes = addKey({'key':fingerprint,'pow':result,'upload':False})
             if not 'Success' in addKeyRes:
                 print('Problem adding the key')
-                exit()
+                stop()
             print('key added')
             
 
     # Add initial key and proof of work if found
-    if not args.initialkey == None:
+    if args.command == 'initialkey':
         if len(G_privateKeys) != 0:
             print('There is already a private key. No need to run this command.')
-            exit()
-        result = addKey({'key': args.initialkey[0], 'pow': args.initialkey[1], 'upload': True})
+            stop()
+        result = addKey({'key': args.key, 'pow': args.pow, 'upload': True})
         if 'Fail' in result.keys():
             print(result['Fail']['Reason'] + '\nExiting..')
-            exit()
+            stop()
         elif 'Partial-Fail' in result.keys():
             print(result['Partial-Fail']['Reason'] + '\nContinuing..')
 
@@ -271,7 +286,7 @@ def main():
     if len(G_privateKeys) == 0:
         print("You first have to enter a key before running the server."
               "\nUse the --initialkey argument to start the server. Exiting..")
-        exit()
+        stop()
 
 
     # Introduce our keys to the peer server and get other peers ips
@@ -286,15 +301,14 @@ def main():
     serverPort = G_configuration['PEER_SERVER']['Port']
     print('connecting to server {}:{}'.format(serverIp, serverPort))
     try:
-        peersRequestSock.connect((G_configuration['PEER_SERVER']['Ip'], \
-                                  int(G_configuration['PEER_SERVER']['Port'])))
+        peersRequestSock.connect((serverIp, int(serverPort)))
         peersRequestSock.sendall(request)
         peersRequestSock.shutdown(socket.SHUT_WR)
         response = str(peersRequestSock.recv(1024), 'utf-8')
         peersRequestSock.shutdown(socket.SHUT_RD)
     except OSError as e:
         print('Problem connecting to the peer server: {}\nExiting..'.format(e))
-        exit()
+        stop()
     finally:
         peersRequestSock.close()
 
@@ -302,12 +316,12 @@ def main():
         response = json.loads(response)
     except json.JSONDecodeError as e:
         print('Json error on peers server response: {}\nExiting..'.format(e))
-        exit()
+        stop()
 
     if response['RESPONSE'] == 'Fail':
         print('Could not receive valid data from the peer server\n'
               '{}\nExiting..'.format(response['Reason']))
-        exit()
+        stop()
 
     G_peers = response['Maps']
 
@@ -325,7 +339,7 @@ def main():
             runDaemon()
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
-        exit()
+        stop()
 
 
 if __name__ == '__main__':
@@ -333,7 +347,7 @@ if __name__ == '__main__':
     pidpath = "/tmp/minicashd.pid"
     if os.path.isfile(pidpath):
         print('{} already exists, exiting..'.format(pidpath))
-        exit()
+        stop()
     with open(pidpath, 'w') as pidfile:
         pidfile.write(pid)
     main()
