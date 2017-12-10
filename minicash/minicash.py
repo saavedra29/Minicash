@@ -32,6 +32,7 @@ def runCommand(commandName, args):
     _ = params.pop('func')
     datatosend = json.dumps(getPayload(commandName, [params]))
     try:
+        datatosend = json.dumps(getPayload(commandName, [params]))
         response = json.loads(getResponse(datatosend))
     except json.decoder.JSONDecodeError as e:
         return {'Fail':{'Reason':'JSONDecodeError', 'Message':e}}
