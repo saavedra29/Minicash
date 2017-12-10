@@ -123,7 +123,10 @@ def pay(kwargs):
 def reloadConf(kwargs):
     return kwargs
 
-def stop(signum, frame):
+def interruptHandler(signum, frame):
+    stop()
+
+def stop():
     # Save memory data to filesystem
     try:
         with open(os.path.join(MINICASHDIR, 'peers.json') , 'w') as peersOutFile:
@@ -165,8 +168,8 @@ def cliServer():
         server.serve_forever()
 
 def main():
-    signal.signal(signal.SIGINT, stop)
-    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, interruptHandler)
+    signal.signal(signal.SIGTERM, interruptHandler)
     # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--peerserver', type=str, help='IP of the peer discovery server')
@@ -339,8 +342,8 @@ def main():
         dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
         print('Staring the daemon..')
         with dcontext:
-            signal.signal(signal.SIGINT, stop)
-            signal.signal(signal.SIGTERM, stop)
+            signal.signal(signal.SIGINT, interruptHandler)
+            signal.signal(signal.SIGTERM, interruptHandler)
             cliThread = threading.Thread(target=cliServer)
             cliThread.start()
     except DaemonOSEnvironmentError as e:
