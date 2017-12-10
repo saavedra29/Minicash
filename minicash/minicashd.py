@@ -170,6 +170,7 @@ def runDaemon():
 def main():
     # Command line arguments
     parser = argparse.ArgumentParser()
+    parser.add_argument('--peerserver', type=str, help='IP of the peer discovery server')
     subparsers = parser.add_subparsers(dest='command')
     initialkey_cmd = subparsers.add_parser('initialkey', help='Creation of the first (oblicgatory \
                                             key')
@@ -185,14 +186,6 @@ def main():
     quickstart_cmd.add_argument('path', help='The path of the new data folder')
     quickstart_cmd.add_argument('keysnum', help='The number of random keys to create')
 
-    ## Initial key adding for the node to run
-    #parser.add_argument('--initialkey', nargs=2, metavar=('KEY', 'POW'), 
-    #    help='Fingerprint and proof of work of the initial key')
-    ## Quick-start data folder and key generation for testing purposes
-    #parser.add_argument('--quickstart', nargs=2, metavar=('HOMEPATH', 'KEYSNUM'), 
-    #    help='Starts creating data folder at PATH path and KEYSNUM (1-1000) number of \
-    #          random keys')
-    
     # Read the arguments of the command line
     args = parser.parse_args()
 
@@ -219,6 +212,8 @@ def main():
     try:
         with open(os.path.join(MINICASHDIR, 'config.json') , 'r') as configfile:
             G_configuration = json.load(configfile)    
+            if args.peerserver:
+                G_configuration['PEER_SERVER']['Ip'] = args.peerserver
     except (OSError, json.JSONDecodeError) as e:
         print("Error while loading peers.json file to memory. Exiting..")
         stop()
@@ -246,6 +241,7 @@ def main():
             gpg = gnupg.GPG(gnupghome=GPGDIR)
         except Exception as e:
             print('Error creating quickstart keys: {}'.format(e))
+            stop()
         if keysnum < 1 or keysnum > 1000:
             print('Provide a number of random keys between 1 and 1000')
             stop()
@@ -264,7 +260,7 @@ def main():
             # Add the key
             addKeyRes = addKey({'key':fingerprint,'pow':result,'upload':False})
             if not 'Success' in addKeyRes:
-                print('Problem adding the key')
+                print('Problem adding the keys')
                 stop()
             print('key added')
             
@@ -305,7 +301,6 @@ def main():
         peersRequestSock.sendall(request)
         peersRequestSock.shutdown(socket.SHUT_WR)
         response = str(peersRequestSock.recv(1024), 'utf-8')
-        peersRequestSock.shutdown(socket.SHUT_RD)
     except OSError as e:
         print('Problem connecting to the peer server: {}\nExiting..'.format(e))
         stop()
@@ -326,8 +321,6 @@ def main():
     G_peers = response['Maps']
 
     # Send hello to the other peers
-    
-
     try:
         dcontext = DaemonContext(
             working_directory=MINICASHDIR,
@@ -347,7 +340,11 @@ if __name__ == '__main__':
     pidpath = "/tmp/minicashd.pid"
     if os.path.isfile(pidpath):
         print('{} already exists, exiting..'.format(pidpath))
-        stop()
-    with open(pidpath, 'w') as pidfile:
-        pidfile.write(pid)
+        exit()
+    try:
+        with open(pidpath, 'w') as pidfile:
+            pidfile.write(pid)
+    except OSError as e:
+        print('Error writting pid file: {}'.format(e))
+        exit()
     main()
