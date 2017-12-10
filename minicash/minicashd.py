@@ -11,6 +11,7 @@ from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
 
 # Global variables
+PIDPATH = "/tmp/minicashd.pid"
 G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
@@ -130,8 +131,8 @@ def stop():
             privateKeysOutFile.write(json.dumps(G_privateKeys))
     except OSError as e:
         print('While exiting program could not write memory data to peers.json or \
-               private_keys.json file: {}'.format(e))
-    os.unlink(pidpath)
+private_keys.json file: {}'.format(e))
+    os.unlink(PIDPATH)
     os._exit(0)
 
 
@@ -188,6 +189,17 @@ def main():
 
     # Read the arguments of the command line
     args = parser.parse_args()
+
+    pid = str(os.getpid())
+    if os.path.isfile(PIDPATH):
+        print('{} already exists, exiting..'.format(PIDPATH))
+        exit()
+    try:
+        with open(PIDPATH, 'w') as pidfile:
+            pidfile.write(pid)
+    except OSError as e:
+        print('Error writting pid file: {}'.format(e))
+        exit()
 
     # Initialize data folder
     global HOMEDIR
@@ -336,15 +348,4 @@ def main():
 
 
 if __name__ == '__main__':
-    pid = str(os.getpid())
-    pidpath = "/tmp/minicashd.pid"
-    if os.path.isfile(pidpath):
-        print('{} already exists, exiting..'.format(pidpath))
-        exit()
-    try:
-        with open(pidpath, 'w') as pidfile:
-            pidfile.write(pid)
-    except OSError as e:
-        print('Error writting pid file: {}'.format(e))
-        exit()
     main()
