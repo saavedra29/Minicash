@@ -1,3 +1,4 @@
+import signal
 import threading
 import socketserver
 import socket
@@ -122,7 +123,7 @@ def pay(kwargs):
 def reloadConf(kwargs):
     return kwargs
 
-def stop():
+def stop(signum, frame):
     # Save memory data to filesystem
     try:
         with open(os.path.join(MINICASHDIR, 'peers.json') , 'w') as peersOutFile:
@@ -163,12 +164,9 @@ def cliServer():
     with socketserver.TCPServer((HOST, PORT), MyCliHandler) as server:
         server.serve_forever()
 
-def runDaemon():
-    cliThread = threading.Thread(target=cliServer)
-    cliThread.start()
-
-
 def main():
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
     # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--peerserver', type=str, help='IP of the peer discovery server')
@@ -341,11 +339,14 @@ def main():
         dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
         print('Staring the daemon..')
         with dcontext:
-            runDaemon()
+            signal.signal(signal.SIGINT, stop)
+            signal.signal(signal.SIGTERM, stop)
+            cliThread = threading.Thread(target=cliServer)
+            cliThread.start()
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         stop()
-
+    
 
 if __name__ == '__main__':
     main()
