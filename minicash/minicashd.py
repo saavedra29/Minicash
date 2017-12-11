@@ -24,17 +24,17 @@ GPGDIR = ''
 def init(kwargs):
     # Create .minicash folder if not existing and enter it
     try:
-        os.chdir(HOMEDIR)
+        os.chdir(kwargs['Homedir'])
         if not os.path.isdir('.minicash'):
             os.mkdir('.minicash')
-        os.chdir(HOMEDIR + '/.minicash')
+        os.chdir(kwargs['Homedir']+ '/.minicash')
     except OSError as e:
         return {'Fail': {'Reason':'IOError accessing data folder', 'Message':str(e)}}
 
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-        'PEER_SERVER': {'Ip': '192.168.1.20', 'Port': '9999'},
+        'PEER_SERVER': {'Ip': '127.0.0.1', 'Port': '9999'},
         'KEY_SERVERS': { 'adresses': [
             'pgp.mit.edu',
             'sks-keyservers.net',
@@ -136,8 +136,9 @@ def stop():
     except OSError as e:
         print('While exiting program could not write memory data to peers.json or \
 private_keys.json file: {}'.format(e))
-    os.unlink(PIDPATH)
-    os._exit(0)
+    finally:
+        os.unlink(PIDPATH)
+        os._exit(0)
 
 
 # Command line interface handler
@@ -173,6 +174,8 @@ def main():
     # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--peerserver', type=str, help='IP of the peer discovery server')
+    parser.add_argument('--homedir', type=str, help='Directory inside which .minicash should \
+                                                     be located')
     subparsers = parser.add_subparsers(dest='command')
     initialkey_cmd = subparsers.add_parser('initialkey', help='Creation of the first (oblicgatory \
                                             key')
@@ -182,10 +185,8 @@ def main():
 
 
     # Quick-start data folder and key generation for testing purposes
-    quickstart_cmd = subparsers.add_parser('quickstart', help='Starts creating data folder at \
-                                            PATH path and KEYSNUM (1-1000) number of \
-                                            random keys')
-    quickstart_cmd.add_argument('path', help='The path of the new data folder')
+    quickstart_cmd = subparsers.add_parser('quickstart', help='Starts creating KEYSNUM \
+                                            (1-1000) number of random keys')
     quickstart_cmd.add_argument('keysnum', help='The number of random keys to create')
 
     # Read the arguments of the command line
@@ -210,13 +211,13 @@ def main():
     global G_configuration
     global G_peers
 
-    if args.command == 'quickstart':
-        HOMEDIR = args.path
+    if args.homedir:
+        HOMEDIR = args.homedir
     else:
         HOMEDIR = os.getenv('HOME')
     MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
     GPGDIR = os.path.join(MINICASHDIR, '.gnupg')
-    dataCreation = init({})
+    dataCreation = init({'Homedir':HOMEDIR})
     if 'Fail' in dataCreation:
         print(dataCreation['Fail']['Reason'] + '\nExiting..')
         stop()
@@ -228,7 +229,7 @@ def main():
             if args.peerserver:
                 G_configuration['PEER_SERVER']['Ip'] = args.peerserver
     except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading peers.json file to memory. Exiting..")
+        print('Error while loading config.json file to memory: {}\nExiting..'.format(e))
         stop()
 
     ## Load the peers
@@ -236,7 +237,7 @@ def main():
         with open(os.path.join(MINICASHDIR, 'peers.json'), 'r') as peersFile:
             G_peers = json.load(peersFile)
     except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading peers.json file to memory. Exiting..")
+        print('Error while loading peers.json file to memory: {}\nExiting..'.format(e))
         stop()   
 
     ## Load the private keys
@@ -244,7 +245,7 @@ def main():
         with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r') as privateKeysFile:
             G_privateKeys = json.load(privateKeysFile)
     except (OSError, json.JSONDecodeError) as e:
-        print("Error while loading private_keys.json file to memory. Exiting..")
+        print('Error while loading private_keys.json file to memory: {}\nExiting..'.format(e))
         stop()
 
     # Create and add the quickstart keys if requested
@@ -269,6 +270,8 @@ def main():
             # Create proof of work for the key (difficulty: 5, cores: maximum 8)
             powGenerator = POWGenerator(fingerprint, 5, 8)
             result = powGenerator.getSolution()
+            if result == None:
+                stop()
             print('proof of work created')
             # Add the key
             addKeyRes = addKey({'key':fingerprint,'pow':result,'upload':False})
