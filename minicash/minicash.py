@@ -99,7 +99,7 @@ listlocalkeys_cmd.set_defaults(func=listLocalKeys)
 # gen-pow subcommand
 pow_cmd = subparsers.add_parser('gen-pow', help='Create proof of work')
 pow_cmd.add_argument('--cores', type=int, choices = range(1, 65), help='How many cores to use',
-    default=1, metavar='<1-64>')
+    default=8, metavar='<1-64>')
 pow_cmd.add_argument('difficulty', type=int, choices=range(1, 21), help='How many leading zeros \
     at pow', metavar='<1-20>')
 pow_cmd.add_argument('key', help='The gpg key fingerprint')

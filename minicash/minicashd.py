@@ -89,8 +89,8 @@ def addKey(kwargs):
         return {'Fail':{'Reason':'Wrong proof of work'}}
 
     # Add the key to the privateKeys
-    global G_privateKeys
-    G_privateKeys[fingerprint] = proof
+    privateKeys = kwargs['toStore']
+    privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
     if not kwargs['upload']:
@@ -183,12 +183,6 @@ def main():
     initialkey_cmd.add_argument('key', help='The key\'s fingerprint')
     initialkey_cmd.add_argument('pow', help='The key\'s proof of work')
 
-
-    # Quick-start data folder and key generation for testing purposes
-    quickstart_cmd = subparsers.add_parser('quickstart', help='Starts creating KEYSNUM \
-                                            (1-1000) number of random keys')
-    quickstart_cmd.add_argument('keysnum', help='The number of random keys to create')
-
     # Read the arguments of the command line
     args = parser.parse_args()
 
@@ -248,45 +242,13 @@ def main():
         print('Error while loading private_keys.json file to memory: {}\nExiting..'.format(e))
         stop()
 
-    # Create and add the quickstart keys if requested
-    if args.command == 'quickstart':
-        keysnum = int(args.keysnum)
-        try:
-            gpg = gnupg.GPG(gnupghome=GPGDIR)
-        except Exception as e:
-            print('Error creating quickstart keys: {}'.format(e))
-            stop()
-        if keysnum < 1 or keysnum > 1000:
-            print('Provide a number of random keys between 1 and 1000')
-            stop()
-        from utils.pow import POWGenerator
-        for num in range(keysnum):
-            # Create key
-            key = gpg.gen_key(gpg.gen_key_input(key_type='RSA',
-                              key_length=1024,
-                              passphrase='mylongminicashsillypassphrase'))
-            fingerprint = key.fingerprint[24:]
-            print('key {} created'.format(num))
-            # Create proof of work for the key (difficulty: 5, cores: maximum 8)
-            powGenerator = POWGenerator(fingerprint, 5, 8)
-            result = powGenerator.getSolution()
-            if result == None:
-                stop()
-            print('proof of work created')
-            # Add the key
-            addKeyRes = addKey({'key':fingerprint,'pow':result,'upload':False})
-            if not 'Success' in addKeyRes:
-                print('Problem adding the keys')
-                stop()
-            print('key added')
-            
-
     # Add initial key and proof of work if found
     if args.command == 'initialkey':
         if len(G_privateKeys) != 0:
             print('There is already a private key. No need to run this command.')
             stop()
-        result = addKey({'key': args.key, 'pow': args.pow, 'upload': True})
+        result = addKey({'key': args.key, 'pow': args.pow, 'upload': True, \
+                         'toStore':G_privateKeys})
         if 'Fail' in result.keys():
             print(result['Fail']['Reason'] + '\nExiting..')
             stop()
@@ -299,7 +261,6 @@ def main():
         print("You first have to enter a key before running the server."
               "\nUse the --initialkey argument to start the server. Exiting..")
         stop()
-
 
     # Introduce our keys to the peer server and get other peers ips
     request = {'Type':'REGUP', 'Keys':[]}
