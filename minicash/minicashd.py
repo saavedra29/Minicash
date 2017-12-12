@@ -69,9 +69,10 @@ def init(kwargs):
 def addKey(kwargs):
     fingerprint = kwargs['key']
     proof = kwargs['pow']
+    gpgdir = kwargs['gpgdir']
 
     # Check if secret key doesn't exist in keyring
-    gpg = gnupg.GPG(gnupghome=GPGDIR)
+    gpg = gnupg.GPG(gnupghome=gpgdir)
     foundkey = None
     for key in gpg.list_keys(True):
         if key['keyid'] == fingerprint:
@@ -248,7 +249,7 @@ def main():
             print('There is already a private key. No need to run this command.')
             stop()
         result = addKey({'key': args.key, 'pow': args.pow, 'upload': True, \
-                         'toStore':G_privateKeys})
+                         'toStore':G_privateKeys, 'gpgdir':GPGDIR})
         if 'Fail' in result.keys():
             print(result['Fail']['Reason'] + '\nExiting..')
             stop()
