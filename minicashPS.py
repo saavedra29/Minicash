@@ -35,18 +35,21 @@ class PeerHandler(socketserver.BaseRequestHandler):
             self.request.sendall(json.dumps({'RESPONSE': 'Fail', \
                                             'Reason': 'Keys element is not list'}).encode('utf-8'))
             return
+
         clientAddress = self.client_address[0]
         partial = False
         for key in peerRequest['Keys']:
-            if not type(key) == str:
+            fprint = key['Fingerprint']
+            proof = key['ProofOfWork']
+            if (type(fprint) is not str) or (type(proof) is not str):
                 partial = True
                 continue
-            # Check for correct ip format
-            res = re.match('^[a-fA-F0-9]{16}$', key)
-            if res == None:
+            # Check for correct fingerprint format
+            res = re.match('^[a-fA-F0-9]{16}$', fprint)
+            if res == None or not proof.isdigit():
                 partial = True
                 continue
-            peersMap[key] = clientAddress
+            peersMap[fprint] = {'Proof':proof, 'Ip':clientAddress}
 
         if partial == False:
             response = {'RESPONSE': 'Success'}

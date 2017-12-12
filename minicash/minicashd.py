@@ -69,10 +69,12 @@ def init(kwargs):
 def addKey(kwargs):
     fingerprint = kwargs['key']
     proof = kwargs['pow']
-    gpgdir = kwargs['gpgdir']
+    if 'gpgdir' in kwargs:
+        gpg = gnupg.GPG(gnupghome=kwargs['gpgdir'])
+    else:
+        gpg = gnupg.GPG(gnupghome=GPGDIR)
 
-    # Check if secret key doesn't exist in keyring
-    gpg = gnupg.GPG(gnupghome=gpgdir)
+    
     foundkey = None
     for key in gpg.list_keys(True):
         if key['keyid'] == fingerprint:
@@ -90,7 +92,11 @@ def addKey(kwargs):
         return {'Fail':{'Reason':'Wrong proof of work'}}
 
     # Add the key to the privateKeys
-    privateKeys = kwargs['toStore']
+    if 'toStore' in kwargs:
+        privateKeys = kwargs['toStore']
+    else:
+        global G_privateKeys
+        privateKeys = G_privateKeys
     privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
@@ -266,7 +272,7 @@ def main():
     # Introduce our keys to the peer server and get other peers ips
     request = {'Type':'REGUP', 'Keys':[]}
     for key in G_privateKeys.keys():
-        request['Keys'].append(key)
+        request['Keys'].append({'Fingerprint':key, 'ProofOfWork':G_privateKeys[key]})
     request = json.dumps(request).encode('utf-8')
 
     peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
