@@ -7,15 +7,14 @@ def checkHash(argsList):
     pattern = argsList[1]
     cpusNum = argsList[2]
     coreId = argsList[3]
-    counter = coreId
     while True:
-        counter += cpusNum
+        coreId += cpusNum
         newHash = hashlib.sha256()
-        newFeed = key + ':' + str(counter)
+        newFeed = key + ':' + str(coreId)
         newHash.update(newFeed.encode('utf-8'))
         result = newHash.hexdigest()
         if result.startswith(pattern):
-            return str(counter)
+            return str(coreId)
 
 def signalIgnorer():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -42,7 +41,8 @@ class POWGenerator:
                     if gotmatch:
                         return gotmatch
             except KeyboardInterrupt:
-                exit()
+                # exit()
+                return None
 
 if __name__ == "__main__":
     import sys
