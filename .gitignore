@@ -105,3 +105,6 @@ peersFile.txt
 todo.txt
 docs.txt
 minicash/utils/client.py
+
+# pycharm
+.idea/
