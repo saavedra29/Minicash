@@ -1,4 +1,5 @@
 import signal
+import logging
 import threading
 import socketserver
 import socket
@@ -58,6 +59,9 @@ def init(kwargs):
         if not os.path.isfile('peers.json'):
             with open('peers.json', 'w') as infile:
                 infile.write('{}')
+        if not os.path.isfile('minicash.log'):
+            with open('minicash.log', 'w') as infile:
+                infile.write('')
         if not os.path.isdir('.gnupg'):
             os.mkdir('.gnupg')
             os.chmod('.gnupg', 0o700)
@@ -182,8 +186,10 @@ def cliServer():
 def main():
     signal.signal(signal.SIGINT, interruptHandler)
     signal.signal(signal.SIGTERM, interruptHandler)
+
     # Command line arguments
     parser = argparse.ArgumentParser()
+    parser.add_argument('--loglevel', help='Level of logging in file minicash.log')
     parser.add_argument('--peerserver', type=str, help='IP of the peer discovery server')
     parser.add_argument('--homedir', type=str, help='Directory inside which .minicash should \
                                                      be located')
@@ -197,6 +203,7 @@ def main():
     # Read the arguments of the command line
     args = parser.parse_args()
 
+    # Checking for already running instance
     pid = str(os.getpid())
     if os.path.isfile(PIDPATH):
         print('{} already exists, exiting..'.format(PIDPATH))
@@ -207,6 +214,7 @@ def main():
     except OSError as e:
         print('Error writting pid file: {}'.format(e))
         exit()
+
 
     # Initialize data folder
     global HOMEDIR
@@ -221,11 +229,25 @@ def main():
     else:
         HOMEDIR = os.getenv('HOME')
     MINICASHDIR = os.path.join(HOMEDIR, '.minicash')
+
     GPGDIR = os.path.join(MINICASHDIR, '.gnupg')
     dataCreation = init({'Homedir': HOMEDIR})
     if 'Fail' in dataCreation:
         print(dataCreation['Fail']['Reason'] + '\nExiting..')
         stop()
+
+    # Set logger level
+    if args.loglevel:
+        level = args.loglevel
+        logLevel = getattr(logging, level.upper(), None)
+        if not isinstance(logLevel, int):
+            print('Wrong logging level')
+            stop()
+    else:
+        logLevel = 'WARNING'
+    logging.basicConfig(format='%(asctime)s => (%(levelname)-8s) %(message)s', level=logLevel,
+                        filename=os.path.join(MINICASHDIR, 'minicash.log'),
+                        filemode='w')
 
     ## Load the configuration
     try:
@@ -288,7 +310,7 @@ def main():
         peersRequestSock.connect((serverIp, int(serverPort)))
         peersRequestSock.sendall(peersRequest)
         peersRequestSock.shutdown(socket.SHUT_WR)
-        peersResponse = str(peersRequestSock.recv(1024), 'utf-8')
+        peersResponse = str(peersRequestSock.recv(65535), 'utf-8')
     except OSError as e:
         print('Problem connecting to the peer server: {}\nExiting..'.format(e))
         stop()
@@ -312,9 +334,9 @@ def main():
     try:
         dcontext = DaemonContext(
             working_directory=MINICASHDIR,
+            files_preserve=[logging.root.handlers[0].stream.fileno()],
             umask=0o022)
         dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
-        dcontext.stdout = open(os.path.join(MINICASHDIR, 'minicash.log'), 'w+')
         print('Staring the daemon..')
         with dcontext:
             signal.signal(signal.SIGINT, interruptHandler)
