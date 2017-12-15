@@ -2,6 +2,7 @@ import json
 import socketserver
 import re
 import argparse
+import hashlib
 
 peersMap = {}
 
@@ -50,6 +51,15 @@ class PeerHandler(socketserver.BaseRequestHandler):
             if res == None or not proof.isdigit():
                 partial = True
                 continue
+            # Check for valid proof of work
+            keyhash = hashlib.sha256()
+            fingerproof = fprint + ':' + proof
+            keyhash.update(fingerproof.encode('utf-8'))
+            hashResult = keyhash.hexdigest()
+            if not hashResult.startswith('00000'):
+                partial = True
+                continue
+
             peersMap[fprint] = {'Proof': proof, 'Ip': clientAddress}
 
         if partial == False:
