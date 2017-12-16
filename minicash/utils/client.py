@@ -1,6 +1,7 @@
 import socket
 
 def simpleSend(data, remoteaddrs, port, waitResponse=False, timeout=None):
+    result = []
     for addr in remoteaddrs:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -9,15 +10,14 @@ def simpleSend(data, remoteaddrs, port, waitResponse=False, timeout=None):
             if waitResponse == True:
                 s.settimeout(timeout)
                 response = str(s.recv(1024), 'utf-8')
-                print('Response from {}:{} => {}'.format(addr, str(port), response))
+                result.append(response)
         except socket.timeout:
-            print('Timeout error waiting for response from {}'.format(addr))
             continue
         except OSError as e:
-            print('OSError: {}'.format(e))
             continue
         finally:
             s.close()
+    return result
 
 
 
@@ -34,6 +34,6 @@ if __name__ == '__main__':
     parser.add_argument('timeout', type=float, default=None, help='Timeout if waiting for response')
     args = parser.parse_args()
 
-    remotes = list(args.remoteaddrs.split(','))
+    remotes = set(args.remoteaddrs.split(','))
     simpleSend(args.data, remotes, args.port, args.wait, args.timeout)
 

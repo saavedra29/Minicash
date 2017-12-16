@@ -3,6 +3,7 @@ import socketserver
 import re
 import argparse
 import hashlib
+from minicash.utils.checksum import isValidProof
 
 peersMap = {}
 
@@ -52,11 +53,7 @@ class PeerHandler(socketserver.BaseRequestHandler):
                 partial = True
                 continue
             # Check for valid proof of work
-            keyhash = hashlib.sha256()
-            fingerproof = fprint + ':' + proof
-            keyhash.update(fingerproof.encode('utf-8'))
-            hashResult = keyhash.hexdigest()
-            if not hashResult.startswith('00000'):
+            if not isValidProof(fprint, proof):
                 partial = True
                 continue
 

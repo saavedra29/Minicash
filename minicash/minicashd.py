@@ -4,19 +4,24 @@ import threading
 import socketserver
 import socket
 import os
+import re
 import argparse
 import json
 import gnupg
 import hashlib
+import asyncio
 from jsonrpc import JSONRPCResponseManager, dispatcher
 from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
+from utils.client import simpleSend
+from utils.checksum import isValidProof
 
 # Global variables
 PIDPATH = "/tmp/minicashd.pid"
 G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
+G_remoteIps = set()
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
@@ -146,15 +151,62 @@ def stop():
     # Save memory data to filesystem
     try:
         with open(os.path.join(MINICASHDIR, 'peers.json'), 'w') as peersOutFile:
-            peersOutFile.write(json.dumps(G_peers))
+            peersOutFile.write(json.dumps(G_peers, indent=4))
         with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'w') as privateKeysOutFile:
-            privateKeysOutFile.write(json.dumps(G_privateKeys))
+            privateKeysOutFile.write(json.dumps(G_privateKeys, indent=4))
     except OSError as e:
         print('While exiting program could not write memory data to peers.json or \
 private_keys.json file: {}'.format(e))
     finally:
         os.unlink(PIDPATH)
         os._exit(0)
+
+# COMMAND LINE INTERFACE AND SERVER CLASSES
+
+# Server handler
+class SynchronizerProtocol(asyncio.Protocol):
+    def connection_made(self, transport):
+        self.peername = transport.get_extra_info('peername')
+        logging.debug('Connection received from {}'.format(self.peername))
+        self.transport = transport
+
+    def data_received(self, data):
+        message = data.decode('utf-8')
+        try:
+            message = json.loads(message)
+        except json.JSONDecodeError as e:
+            self.transport.close()
+            return
+        if 'Type' not in message:
+            self.transport.close()
+            return
+        # If message is hello record the new key-ip pairs
+        if message['Type'] == 'hello':
+            if 'Keys' not in message:
+                self.transport.close()
+                return
+            keys = message['Keys']
+            if type(keys) is not list:
+                self.transport.close()
+                return
+            for key in keys:
+                fprint = key['Fingerprint']
+                proof = key['ProofOfWork']
+                if (type(fprint) is not str) or (type(proof) is not str):
+                    continue
+                # Check for correct fingerprint format
+                res = re.match('^[a-fA-F0-9]{16}$', fprint)
+                if res == None or not proof.isdigit():
+                    continue
+                # Check for valid proof of work
+                if not isValidProof(fprint, proof):
+                    continue
+                G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
+        self.transport.close()
+        return
+
+    def connection_lost(self, exc):
+        pass
 
 
 # Command line interface handler
@@ -175,6 +227,13 @@ class MyCliHandler(socketserver.BaseRequestHandler):
             str(data, 'utf-8'), dispatcher)
         self.request.sendall(response.json.encode('utf-8'))
 
+def server():
+    loop = asyncio.new_event_loop()
+    server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
+    loop.run_forever()
+    server.close()
+    loop.run_until_complete(server.wait_closed())
+    loop.close()
 
 def cliServer():
     HOST, PORT = "localhost", 2223
@@ -330,7 +389,19 @@ def main():
 
     G_peers = peersResponse['Maps']
 
+    
     # Send hello to the other peers
+    remoteips = []
+    for proofIp in G_peers.values():
+        remoteips.append(proofIp['Ip'])
+    global G_remoteIps
+    G_remoteIps = set(remoteips)
+    hello = {'Type': 'hello', 'Keys': []}
+    for key in G_privateKeys.keys():
+        hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
+    hello = json.dumps(hello)
+    simpleSend(hello, G_remoteIps, 2222, timeout=1)
+
     try:
         dcontext = DaemonContext(
             working_directory=MINICASHDIR,
@@ -343,6 +414,8 @@ def main():
             signal.signal(signal.SIGTERM, interruptHandler)
             cliThread = threading.Thread(target=cliServer)
             cliThread.start()
+            serverThread = threading.Thread(target=server)
+            serverThread.start()
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         stop()
