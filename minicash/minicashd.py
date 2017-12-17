@@ -17,6 +17,7 @@ from utils.client import simpleSend
 from utils.checksum import isValidProof
 
 # Global variables
+noPid = False
 PIDPATH = "/tmp/minicashd.pid"
 G_privateKeys = {}
 G_configuration = {}
@@ -158,7 +159,8 @@ def stop():
         print('While exiting program could not write memory data to peers.json or \
 private_keys.json file: {}'.format(e))
     finally:
-        os.unlink(PIDPATH)
+        if not noPid:
+            os.unlink(PIDPATH)
         os._exit(0)
 
 # COMMAND LINE INTERFACE AND SERVER CLASSES
@@ -227,14 +229,6 @@ class MyCliHandler(socketserver.BaseRequestHandler):
             str(data, 'utf-8'), dispatcher)
         self.request.sendall(response.json.encode('utf-8'))
 
-def server():
-    loop = asyncio.new_event_loop()
-    server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
-    loop.run_forever()
-    server.close()
-    loop.run_until_complete(server.wait_closed())
-    loop.close()
-
 def cliServer():
     HOST, PORT = "localhost", 2223
     socketserver.TCPServer.allow_reuse_address = True
@@ -249,9 +243,11 @@ def main():
     # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--loglevel', help='Level of logging in file minicash.log')
-    parser.add_argument('--peerserver', type=str, help='IP of the peer discovery server')
-    parser.add_argument('--homedir', type=str, help='Directory inside which .minicash should \
+    parser.add_argument('--peerserver', help='IP of the peer discovery server')
+    parser.add_argument('--homedir', help='Directory inside which .minicash should \
                                                      be located')
+    parser.add_argument('--nopid', action='store_true', help='Run without pid file')
+
     subparsers = parser.add_subparsers(dest='command')
     initialkey_cmd = subparsers.add_parser('initialkey', help='Creation of the first (oblicgatory \
                                             key')
@@ -262,17 +258,22 @@ def main():
     # Read the arguments of the command line
     args = parser.parse_args()
 
+    if args.nopid:
+        global noPid
+        noPid = True
+    
     # Checking for already running instance
-    pid = str(os.getpid())
-    if os.path.isfile(PIDPATH):
-        print('{} already exists, exiting..'.format(PIDPATH))
-        exit()
-    try:
-        with open(PIDPATH, 'w') as pidfile:
-            pidfile.write(pid)
-    except OSError as e:
-        print('Error writting pid file: {}'.format(e))
-        exit()
+    if not noPid:
+        pid = str(os.getpid())
+        if os.path.isfile(PIDPATH):
+            print('{} already exists, exiting..'.format(PIDPATH))
+            exit()
+        try:
+            with open(PIDPATH, 'w') as pidfile:
+                pidfile.write(pid)
+        except OSError as e:
+            print('Error writting pid file: {}'.format(e))
+            exit()
 
 
     # Initialize data folder
@@ -414,8 +415,13 @@ def main():
             signal.signal(signal.SIGTERM, interruptHandler)
             cliThread = threading.Thread(target=cliServer)
             cliThread.start()
-            serverThread = threading.Thread(target=server)
-            serverThread.start()
+
+            loop = asyncio.new_event_loop()
+            server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
+            loop.run_forever()
+            server.close()
+            loop.run_until_complete(server.wait_closed())
+            loop.close()
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         stop()
