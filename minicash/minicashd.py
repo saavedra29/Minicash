@@ -22,6 +22,7 @@ PIDPATH = "/tmp/minicashd.pid"
 G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
+G_ledger = {}
 G_remoteIps = set()
 HOMEDIR = ''
 MINICASHDIR = ''
@@ -64,6 +65,9 @@ def init(kwargs):
                 infile.write('{}')
         if not os.path.isfile('peers.json'):
             with open('peers.json', 'w') as infile:
+                infile.write('{}')
+        if not os.path.isfile('ledger.json'):
+            with open('ledger.json', 'w') as infile:
                 infile.write('{}')
         if not os.path.isfile('minicash.log'):
             with open('minicash.log', 'w') as infile:
@@ -150,9 +154,10 @@ def stop():
             peersOutFile.write(json.dumps(G_peers, indent=4))
         with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'w') as privateKeysOutFile:
             privateKeysOutFile.write(json.dumps(G_privateKeys, indent=4))
+        with open(os.path.join(MINICASHDIR, 'ledger.json'), 'w') as ledgerFile:
+            ledgerFile.write(json.dumps(G_ledger, indent=4))
     except OSError as e:
-        print('While exiting program could not write memory data to peers.json or \
-private_keys.json file: {}'.format(e))
+        print('While exiting program could not write memory data to disk: {}'.format(e))
     finally:
         if not noPid:
             os.unlink(PIDPATH)
@@ -277,6 +282,7 @@ def main():
     global G_privateKeys
     global G_configuration
     global G_peers
+    global G_ledger
 
     if args.homedir:
         HOMEDIR = args.homedir
@@ -327,6 +333,14 @@ def main():
             G_privateKeys = json.load(privateKeysFile)
     except (OSError, json.JSONDecodeError) as e:
         print('Error while loading private_keys.json file to memory: {}\nExiting..'.format(e))
+        stop()
+
+    ## Load the ledger
+    try:
+        with open(os.path.join(MINICASHDIR, 'ledger.json'), 'r') as ledgerFile:
+            G_ledger = json.load(ledgerFile)
+    except (OSError, json.JSONDecodeError) as e:
+        print('Error while loading ledger.json file to memory: {}\nExiting..'.format(e))
         stop()
 
     # Add initial key and proof of work if found
@@ -420,6 +434,7 @@ def main():
         print('ERROR: {}'.format(e))
         stop()
 
+    # Get the ledger
 
 if __name__ == '__main__':
     main()
