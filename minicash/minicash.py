@@ -73,10 +73,6 @@ def addKey(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
 
-def reloadConf(args):
-    pp.pprint(runCommand(inspect.stack()[0][3], args))
-
-
 def stop(args):
     payload = {
         'method': 'stop',
@@ -125,9 +121,6 @@ addkey_cmd.set_defaults(func=addKey)
 # get-balances subcommand
 getbalances_cmd = subparser.add_parser('getbalances', help='Get the balances')
 getbalances_cmd.set_defaults(func=getBalances)
-# reload-conf subcommand
-reloadconf_cmd = subparser.add_parser('reload-conf', help='Reload configuration')
-reloadconf_cmd.set_defaults(func=reloadConf)
 # stop subcommand
 stop_cmd = subparser.add_parser('stop', help='Stop the server')
 stop_cmd.set_defaults(func=stop)

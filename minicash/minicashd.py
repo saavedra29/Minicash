@@ -123,7 +123,6 @@ def addKey(kwargs):
     return {'Partial-Fail': {'Reason': 'Problem uploading key to server '
                                        'but key added to private_keys.json'}}
 
-
 def listPeers(kwargs):
     return {'Success': G_peers}
 
@@ -137,10 +136,6 @@ def getBalances(kwargs):
 
 
 def pay(kwargs):
-    return kwargs
-
-
-def reloadConf(kwargs):
     return kwargs
 
 
@@ -222,7 +217,6 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         dispatcher.add_method(getBalances)
         dispatcher.add_method(pay)
         dispatcher.add_method(addKey)
-        dispatcher.add_method(reloadConf)
         dispatcher.add_method(stop)
 
         response = JSONRPCResponseManager.handle(
