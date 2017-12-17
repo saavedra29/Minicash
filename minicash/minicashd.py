@@ -10,6 +10,8 @@ import json
 import gnupg
 import hashlib
 import asyncio
+import random
+import time
 from jsonrpc import JSONRPCResponseManager, dispatcher
 from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
@@ -43,7 +45,7 @@ def init(kwargs):
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-            'PEER_SERVER': {'Ip': '127.0.0.1', 'Port': '9999'},
+            'PEER_SERVER': {'Ip': '192.168.0.20', 'Port': '9999'},
             'KEY_SERVERS': {'adresses': [
                 'pgp.mit.edu',
                 'sks-keyservers.net',
@@ -410,6 +412,10 @@ def main():
         hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
     hello = json.dumps(hello)
     simpleSend(hello, G_remoteIps, 2222, timeout=1)
+    # Send a second time in case all peers start at the same moment (testing cases)
+    time.sleep(random.uniform(0.0, 3.0))
+    simpleSend(hello, G_remoteIps, 2222, timeout=1)
+    
 
     try:
         dcontext = DaemonContext(
@@ -435,6 +441,7 @@ def main():
         stop()
 
     # Get the ledger
+    
 
 if __name__ == '__main__':
     main()
