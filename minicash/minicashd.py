@@ -83,6 +83,21 @@ def init(kwargs):
     return {'Success': {}}
 
 
+def addToKeyring(fingerprint):
+    gpg = gnupg.GPG(gnupghome=GPGDIR)
+    for key in gpg.list_keys():
+        if key['keyid'] == fingerprint:
+            return True
+    # Receive key from key server
+    servers = G_configuration['KEY_SERVERS']['adresses']
+    for keyserver in servers:
+        response = gpg.recv_keys(keyserver, fingerprint).stderr
+        failureWords = ['ERROR', 'FAILURE']
+        if not any(x in response for x in failureWords):
+            return True
+    return False
+    
+
 def addKey(kwargs):
     fingerprint = kwargs['key']
     proof = kwargs['pow']
@@ -128,6 +143,8 @@ def addKey(kwargs):
             return {'Success': {}}
     return {'Partial-Fail': {'Reason': 'Problem uploading key to server '
                                        'but key added to private_keys.json'}}
+    
+    # Add key to the ledger
 
 def listPeers(kwargs):
     return {'Success': G_peers}
@@ -359,7 +376,6 @@ def main():
             print(addKeyResult['Partial-Fail']['Reason'] + '\nContinuing..')
 
     # Check first if we have at least one secret key
-    # print('G_privateKeys: {}'.format(G_privateKeys))
     if len(G_privateKeys) == 0:
         print("You first have to enter a key before running the server."
               "\nUse the initialkey subcommand to start the server. Exiting..")
@@ -372,7 +388,6 @@ def main():
     peersRequest = json.dumps(peersRequest).encode('utf-8')
 
     peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # peersRequestSock.settimeout(5)
     serverIp = G_configuration['PEER_SERVER']['Ip']
     serverPort = G_configuration['PEER_SERVER']['Port']
     print('connecting to server {}:{}'.format(serverIp, serverPort))
@@ -399,6 +414,7 @@ def main():
         stop()
 
     G_peers = peersResponse['Maps']
+    
 
     
     # Send hello to the other peers
@@ -415,6 +431,12 @@ def main():
     # Send a second time in case all peers start at the same moment (testing cases)
     time.sleep(random.uniform(0.0, 3.0))
     simpleSend(hello, G_remoteIps, 2222, timeout=1)
+    
+    # GET THE LEDGER
+    # Ask the ledger from every peer
+    # Check if a copy is given by more than 67% of the total peers number
+    # If no end program with concesus problem error
+    # Else update the old ledger with the new one 
     
 
     try:
@@ -439,8 +461,6 @@ def main():
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         stop()
-
-    # Get the ledger
     
 
 if __name__ == '__main__':
