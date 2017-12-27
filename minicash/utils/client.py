@@ -11,9 +11,7 @@ def simpleSend(data, remoteaddrs, port, waitResponse=False, timeout=None):
                 s.settimeout(timeout)
                 response = str(s.recv(1024), 'utf-8')
                 result.append(response)
-        except socket.timeout:
-            continue
-        except OSError as e:
+        except (socket.timeout, OSError):
             continue
         finally:
             s.close()
