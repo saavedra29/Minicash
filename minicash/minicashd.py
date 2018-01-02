@@ -390,6 +390,8 @@ def main():
     peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverIp = G_configuration['PEER_SERVER']['Ip']
     serverPort = G_configuration['PEER_SERVER']['Port']
+    # Wait for a random amount of time for solving synchronization problems
+    time.sleep(random.uniform(0.0, 2.0))
     print('connecting to server {}:{}'.format(serverIp, serverPort))
     try:
         peersRequestSock.connect((serverIp, int(serverPort)))
@@ -428,15 +430,6 @@ def main():
         hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
     hello = json.dumps(hello)
     simpleSend(hello, G_remoteIps, 2222, timeout=1)
-    # Send a second time in case all peers start at the same moment (testing cases)
-    time.sleep(random.uniform(0.0, 3.0))
-    simpleSend(hello, G_remoteIps, 2222, timeout=1)
-    
-    # GET THE LEDGER
-    # Ask the ledger from every peer
-    # Check if a copy is given by more than 67% of the total peers number
-    # If no end program with concesus problem error
-    # Else update the old ledger with the new one 
     
 
     try:
