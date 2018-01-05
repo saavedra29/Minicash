@@ -10,7 +10,7 @@ def checkHash(argsList):
     while True:
         coreId += cpusNum
         newHash = hashlib.sha256()
-        newFeed = key + ':' + str(coreId)
+        newFeed = key + '_' + str(coreId)
         newHash.update(newFeed.encode('utf-8'))
         result = newHash.hexdigest()
         if result.startswith(pattern):

@@ -72,6 +72,8 @@ def genPow(args):
 def addKey(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
+def getLogInfo(args):
+    pp.pprint(runCommand(inspect.stack()[0][3], args))
 
 def stop(args):
     payload = {
@@ -101,6 +103,9 @@ listnodes_cmd = subparser.add_parser('listpeers', help='List all online nodes in
 listnodes_cmd.add_argument('--with-keys', action='store_true',
                            help='Show also the keys assigned to them')
 listnodes_cmd.set_defaults(func=listPeers)
+# getloginfo subcommand
+init_cmd = subparser.add_parser('getloginfo', help='Read the log file')
+init_cmd.set_defaults(func=getLogInfo)
 # listlocalkeys subcommand
 listlocalkeys_cmd = subparser.add_parser('listlocalkeys', help='List all local keys fingerprints')
 listlocalkeys_cmd.set_defaults(func=listLocalKeys)

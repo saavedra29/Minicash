@@ -12,6 +12,7 @@ import hashlib
 import asyncio
 import random
 import time
+from utils.protocols import LedgerRequestProtocol
 from jsonrpc import JSONRPCResponseManager, dispatcher
 from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
@@ -26,10 +27,38 @@ G_configuration = {}
 G_peers = {}
 G_ledger = {}
 G_remoteIps = set()
+G_ledgerResponses = {}
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
 
+
+# take nonce and ledger and return dictionary with local keys as keys and the signatures of the
+# ledger's md5 as values
+def signLedgerLocalKeys(nonce, ledger):
+    logging.info('Ledger before dumping: {}'.format(ledger))
+    dumpedLedger = json.dumps(ledger, sort_keys=True)
+    logging.info('Ledger after dumping: {}, type: {}'.format(dumpedLedger, type(dumpedLedger)))
+    hashobj = hashlib.md5()
+    hashobj.update(dumpedLedger.encode('utf-8'))
+    hashedLedger = hashobj.hexdigest()
+    logging.info('hashedLedger: {}'.format(hashedLedger))
+    dataToSign = str(nonce) + hashedLedger
+    logging.info('Data to sign: {}'.format(dataToSign))
+    # Sign the checksum with all the local keys
+    signaturesDict = {}
+    gpg = gnupg.GPG(gnupghome=GPGDIR)
+    for searchingKey in G_privateKeys.keys():
+        for listedKey in gpg.list_keys(True):
+            listedKey = listedKey['keyid']
+            logging.info('Checking {} with {} keys'.format(listedKey, searchingKey))
+            if listedKey == searchingKey:
+                signedData = gpg.sign(dataToSign, keyid=searchingKey, detach=True,
+                    passphrase='mylongminicashsillypassphrase')
+                logging.info('signature: {}'.format(signedData.data))
+                signaturesDict[searchingKey] = str(signedData.data, 'utf-8')
+    return signaturesDict
+    
 
 # COMMAND LINE FUNCTIONS
 def init(kwargs):
@@ -115,7 +144,7 @@ def addKey(kwargs):
 
     # Check if pow is invalid for the key
     keyhash = hashlib.sha256()
-    fingerproof = fingerprint + ':' + proof
+    fingerproof = fingerprint + '_' + proof
     keyhash.update(fingerproof.encode('utf-8'))
     hashResult = keyhash.hexdigest()
     if not hashResult.startswith('00000'):
@@ -144,7 +173,11 @@ def addKey(kwargs):
     return {'Partial-Fail': {'Reason': 'Problem uploading key to server '
                                        'but key added to private_keys.json'}}
     
-    # Add key to the ledger
+    # ADD KEY TO LEDGER
+    # Make new ledger copy with the key
+    # Send it for vote
+    #   If not voted exit with fail
+    # Refresh the ledger
 
 def listPeers(kwargs):
     return {'Success': G_peers}
@@ -165,6 +198,8 @@ def pay(kwargs):
 def interruptHandler(signum, frame):
     stop()
 
+def getLogInfo(kwargs):
+    return {'Success': G_ledgerResponses}
 
 def stop():
     # Save memory data to filesystem
@@ -188,7 +223,7 @@ def stop():
 class SynchronizerProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self.peername = transport.get_extra_info('peername')
-        logging.debug('Connection received from {}'.format(self.peername))
+        logging.info('Connection received from {}'.format(self.peername))
         self.transport = transport
 
     def data_received(self, data):
@@ -223,11 +258,23 @@ class SynchronizerProtocol(asyncio.Protocol):
                 if not isValidProof(fprint, proof):
                     continue
                 G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
-        self.transport.close()
-        return
+        elif message['Type'] == 'REQ_LEDGER':
+            if 'Nonce' not in message:
+                self.transport.close()
+                return
+            if not isinstance(message['Nonce'], int):
+                self.transport.close()
+                return
+                
+            # Get dumped ledger's md5
+            signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
+            ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': G_ledger,
+                              'Signatures': signaturesDict}
+            ledgerResponse = json.dumps(ledgerResponse)
+            self.transport.write(ledgerResponse.encode('utf-8'))
 
     def connection_lost(self, exc):
-        pass
+        self.transport.close()
 
 
 # Command line interface handler
@@ -242,6 +289,7 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         dispatcher.add_method(pay)
         dispatcher.add_method(addKey)
         dispatcher.add_method(stop)
+        dispatcher.add_method(getLogInfo)
 
         response = JSONRPCResponseManager.handle(
             str(data, 'utf-8'), dispatcher)
@@ -431,6 +479,35 @@ def main():
     hello = json.dumps(hello)
     simpleSend(hello, G_remoteIps, 2222, timeout=1)
     
+    # Ask for ledger from the other nodes 
+    nonce = random.randint(0, 1000)
+    async def ledgerRequestConnection(ip, loop):
+        future = asyncio.Future()
+        try:
+            await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
+                 future, nonce), ip , 2222)
+        except ConnectionRefusedError:
+            return
+        await future
+        return future
+
+    loop = asyncio.get_event_loop()
+    global G_ledgerResponses
+    tasks = []
+    for ip in G_remoteIps:
+        task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
+        tasks.append(task)
+    results = loop.run_until_complete(asyncio.gather(*tasks))   
+    i = 0
+    for res in results:
+        if res is not None:
+            G_ledgerResponses[i] = res.result()
+            i += 1
+    loop.close()
+
+    # Check if there is copy at more than 67% of total nodes
+    #   If no exit with error
+    # Replace ledger
 
     try:
         dcontext = DaemonContext(
@@ -455,6 +532,5 @@ def main():
         print('ERROR: {}'.format(e))
         stop()
     
-
 if __name__ == '__main__':
     main()
