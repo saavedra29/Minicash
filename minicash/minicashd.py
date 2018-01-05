@@ -462,11 +462,14 @@ def main():
         print('Could not receive valid data from the peer server\n'
               '{}\nExiting..'.format(peersResponse['Reason']))
         stop()
-
-    G_peers = peersResponse['Maps']
     
+    # Check the proof of work of the keys
+    maps = peersResponse['Maps']
+    for key, val in maps.items():
+        if isValidProof(key, val['Proof']):
+            G_peers[key] = val   
 
-    
+
     # Send hello to the other peers
     remoteips = []
     for proofIp in G_peers.values():
