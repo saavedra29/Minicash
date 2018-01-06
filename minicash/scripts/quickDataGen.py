@@ -5,11 +5,64 @@ import argparse
 import gnupg
 import shutil
 from pathlib import Path
+import hashlib
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-from minicashd import addKey, init
+from minicashd import init
 from utils.pow import POWGenerator
 
+def addKey(kwargs):
+    fingerprint = kwargs['key']
+    proof = kwargs['pow']
+    if 'gpgdir' in kwargs:
+        gpg = gnupg.GPG(gnupghome=kwargs['gpgdir'])
+    else:
+        gpg = gnupg.GPG(gnupghome=GPGDIR)
+
+    foundkey = None
+    for key in gpg.list_keys(True):
+        if key['keyid'] == fingerprint:
+            foundkey = key
+    if foundkey == None:
+        return {'Fail': {'Reason': 'Key not found in gpg database'}}
+
+    # Check if pow is invalid for the key
+    keyhash = hashlib.sha256()
+    fingerproof = fingerprint + '_' + proof
+    keyhash.update(fingerproof.encode('utf-8'))
+    hashResult = keyhash.hexdigest()
+    if not hashResult.startswith('00000'):
+        return {'Fail': {'Reason': 'Wrong proof of work'}}
+
+    # Add the key to the privateKeys
+    if 'toStore' in kwargs:
+        privateKeys = kwargs['toStore']
+    else:
+        global G_privateKeys
+        privateKeys = G_privateKeys
+    privateKeys[fingerprint] = proof
+
+    # Return if uploading to server is not requested
+    if 'noupload' in kwargs:
+        return {'Success': {}}
+
+    # Upload key to the key server
+    servers = [
+            "pgp.mit.edu",
+            "sks-keyservers.net",
+            "pool.sks-keyservers.net",
+            "eu.pool.sks-keyservers.net"
+        ]
+
+    for keyserver in servers:
+        response = gpg.send_keys(keyserver, fingerprint).stderr
+        failureWords = ['ERROR', 'FAILURE']
+        if not any(x in response for x in failureWords):
+            return {'Success': {}}
+    
+    del(privateKeys[fingerprint])
+    return {'Fail': {'Reason': 'Problem uploading key to server'}}
+    
 
 def main():
     parser = argparse.ArgumentParser()
@@ -64,7 +117,7 @@ def main():
                 return
             print('proof of work created')
             # Add the key
-            addKeyRes = addKey({'key': fingerprint, 'pow': result, 'noupload': True,
+            addKeyRes = addKey({'key': fingerprint, 'pow': result, 'upload': True,
                                 'toStore': privateKeys, 'gpgdir': GPGDIR})
             if not 'Success' in addKeyRes:
                 print('Problem adding the keys: {}'.format(addKeyRes['Fail']['Reason']))

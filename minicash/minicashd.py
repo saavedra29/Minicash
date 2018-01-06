@@ -160,7 +160,7 @@ def addKey(kwargs):
     privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
-    if kwargs['noupload']:
+    if 'noupload' in kwargs:
         return {'Success': {}}
 
     # Upload key to the key server
