@@ -315,11 +315,12 @@ def main():
     parser.add_argument('--nopid', action='store_true', help='Run without pid file')
 
     subparsers = parser.add_subparsers(dest='command')
-    initialkey_cmd = subparsers.add_parser('initialkey', help='Creation of the first (oblicgatory \
-                                            key')
+
+    # initialkey_cmd = subparsers.add_parser('initialkey', help='Creation of the first (oblicgatory \
+    #                                         key')
     # Initial key adding for the node to run
-    initialkey_cmd.add_argument('key', help='The key\'s fingerprint')
-    initialkey_cmd.add_argument('pow', help='The key\'s proof of work')
+    # initialkey_cmd.add_argument('key', help='The key\'s fingerprint')
+    # initialkey_cmd.add_argument('pow', help='The key\'s proof of work')
 
     # Read the arguments of the command line
     args = parser.parse_args()
@@ -411,23 +412,23 @@ def main():
         stop()
 
     # Add initial key and proof of work if found
-    if args.command == 'initialkey':
-        if len(G_privateKeys) != 0:
-            print('There is already a private key. No need to run this command.')
-            stop()
-        addKeyResult = addKey({'key': args.key, 'pow': args.pow, 'upload': True,
-                         'toStore': G_privateKeys, 'gpgdir': GPGDIR})
-        if 'Fail' in addKeyResult.keys():
-            print(addKeyResult['Fail']['Reason'] + '\nExiting..')
-            stop()
-        elif 'Partial-Fail' in addKeyResult.keys():
-            print(addKeyResult['Partial-Fail']['Reason'] + '\nContinuing..')
+    # if args.command == 'initialkey':
+    #     if len(G_privateKeys) != 0:
+    #         print('There is already a private key. No need to run this command.')
+    #         stop()
+    #     addKeyResult = addKey({'key': args.key, 'pow': args.pow, 'upload': True,
+    #                      'toStore': G_privateKeys, 'gpgdir': GPGDIR})
+    #     if 'Fail' in addKeyResult.keys():
+    #         print(addKeyResult['Fail']['Reason'] + '\nExiting..')
+    #         stop()
+    #     elif 'Partial-Fail' in addKeyResult.keys():
+    #         print(addKeyResult['Partial-Fail']['Reason'] + '\nContinuing..')
 
     # Check first if we have at least one secret key
-    if len(G_privateKeys) == 0:
-        print("You first have to enter a key before running the server."
-              "\nUse the initialkey subcommand to start the server. Exiting..")
-        stop()
+    # if len(G_privateKeys) == 0:
+    #     print("You first have to enter a key before running the server."
+    #           "\nUse the initialkey subcommand to start the server. Exiting..")
+    #     stop()
 
     # Introduce our keys to the peer server and get other peers ips
     peersRequest = {'Type': 'REGUP', 'Keys': []}
