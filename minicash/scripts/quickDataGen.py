@@ -64,7 +64,7 @@ def main():
                 return
             print('proof of work created')
             # Add the key
-            addKeyRes = addKey({'key': fingerprint, 'pow': result, 'upload': False,
+            addKeyRes = addKey({'key': fingerprint, 'pow': result, 'noupload': True,
                                 'toStore': privateKeys, 'gpgdir': GPGDIR})
             if not 'Success' in addKeyRes:
                 print('Problem adding the keys: {}'.format(addKeyRes['Fail']['Reason']))

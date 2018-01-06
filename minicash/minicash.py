@@ -100,8 +100,6 @@ init_cmd = subparser.add_parser('init', help='Create new, fresh file structure')
 init_cmd.set_defaults(func=init)
 # list-nodes subcommand
 listnodes_cmd = subparser.add_parser('listpeers', help='List all online nodes in the network')
-listnodes_cmd.add_argument('--with-keys', action='store_true',
-                           help='Show also the keys assigned to them')
 listnodes_cmd.set_defaults(func=listPeers)
 # getloginfo subcommand
 init_cmd = subparser.add_parser('getloginfo', help='Read the log file')
@@ -119,7 +117,7 @@ pow_cmd.add_argument('key', help='The gpg key fingerprint')
 pow_cmd.set_defaults(func=genPow)
 # add-key subcommand
 addkey_cmd = subparser.add_parser('add-key', help='Add existing key in the node')
-addkey_cmd.add_argument('--upload', action='store_true', help='Upload key to keyserver')
+addkey_cmd.add_argument('--noupload', action='store_true', help='Upload key to keyserver')
 addkey_cmd.add_argument('key', help='The gpg fingerprint')
 addkey_cmd.add_argument('pow', help='The proof of work number')
 addkey_cmd.set_defaults(func=addKey)

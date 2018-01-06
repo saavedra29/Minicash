@@ -120,7 +120,8 @@ def addToKeyring(fingerprint):
     # Receive key from key server
     servers = G_configuration['KEY_SERVERS']['adresses']
     for keyserver in servers:
-        response = gpg.recv_keys(keyserver, fingerprint).stderr
+        response = gpg.recv_keys(keyserver, '0x' + fingerprint).stderr
+        logging.info('Sent {} to {} keyserver and got response: {}'.format(fingerprint, keyserver, response))
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
             return True
@@ -159,7 +160,7 @@ def addKey(kwargs):
     privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
-    if not kwargs['upload']:
+    if kwargs['noupload']:
         return {'Success': {}}
 
     # Upload key to the key server
@@ -170,8 +171,9 @@ def addKey(kwargs):
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
             return {'Success': {}}
-    return {'Partial-Fail': {'Reason': 'Problem uploading key to server '
-                                       'but key added to private_keys.json'}}
+    
+    del(privateKeys[fingerprint])
+    return {'Fail': {'Reason': 'Problem uploading key to server'}}
     
     # ADD KEY TO LEDGER
     # Make new ledger copy with the key
