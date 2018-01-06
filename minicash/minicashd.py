@@ -463,11 +463,19 @@ def main():
               '{}\nExiting..'.format(peersResponse['Reason']))
         stop()
     
-    # Check the proof of work of the keys
     maps = peersResponse['Maps']
     for key, val in maps.items():
-        if isValidProof(key, val['Proof']):
-            G_peers[key] = val   
+        # Check the proof of work of the key.
+        if not isValidProof(key, val['Proof']):
+            logging.info('The key {} is rejected because of invalid proof of work'.format(key))
+            continue
+        # Try to download the key from the key server. If it's impossible continue
+        if not addToKeyring(key):
+            logging.info('The key {} is rejected because can not be found on key server'.format(
+                            key))
+            continue
+        # Add the key to the keyring
+        G_peers[key] = val   
 
 
     # Send hello to the other peers
