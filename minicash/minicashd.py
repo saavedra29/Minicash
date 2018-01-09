@@ -303,6 +303,14 @@ def cliServer():
     with socketserver.TCPServer((HOST, PORT), MyCliHandler) as server:
         server.serve_forever()
 
+def nodeServer():
+    loop = asyncio.new_event_loop()
+    server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
+    loop.run_forever()
+    server.close()
+    loop.run_until_complete(server.wait_closed())
+    loop.close()
+    
 
 def main():
     signal.signal(signal.SIGINT, interruptHandler)
@@ -407,97 +415,6 @@ def main():
         print('Error while loading ledger.json file to memory: {}\nExiting..'.format(e))
         stop()
 
-    # Introduce our keys to the peer server and get other peers ips
-    peersRequest = {'Type': 'REGUP', 'Keys': []}
-    for key in G_privateKeys.keys():
-        peersRequest['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
-    peersRequest = json.dumps(peersRequest).encode('utf-8')
-
-    peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serverIp = G_configuration['PEER_SERVER']['Ip']
-    serverPort = G_configuration['PEER_SERVER']['Port']
-    # Wait for a random amount of time for solving synchronization problems
-    time.sleep(random.uniform(0.0, 2.0))
-    print('connecting to server {}:{}'.format(serverIp, serverPort))
-    try:
-        peersRequestSock.connect((serverIp, int(serverPort)))
-        peersRequestSock.sendall(peersRequest)
-        peersRequestSock.shutdown(socket.SHUT_WR)
-        peersResponse = str(peersRequestSock.recv(65535), 'utf-8')
-    except OSError as e:
-        print('Problem connecting to the peer server: {}\nExiting..'.format(e))
-        stop()
-    finally:
-        peersRequestSock.close()
-
-    try:
-        peersResponse = json.loads(peersResponse)
-    except json.JSONDecodeError as e:
-        print('Json error on peers server response: {}\nExiting..'.format(e))
-        stop()
-
-    if peersResponse['Response'] == 'Fail':
-        print('Could not receive valid data from the peer server\n'
-              '{}\nExiting..'.format(peersResponse['Reason']))
-        stop()
-    
-    maps = peersResponse['Maps']
-    for key, val in maps.items():
-        # Check the proof of work of the key.
-        if not isValidProof(key, val['Proof']):
-            logging.info('The key {} is rejected because of invalid proof of work'.format(key))
-            continue
-        # Try to download the key from the key server. If it's impossible continue
-        if not addToKeyring(key):
-            logging.info('The key {} is rejected because can not be found on key server'.format(
-                            key))
-            continue
-        # Add the key to the keyring
-        G_peers[key] = val   
-
-
-    # Send hello to the other peers
-    remoteips = []
-    for proofIp in G_peers.values():
-        remoteips.append(proofIp['Ip'])
-    global G_remoteIps
-    G_remoteIps = set(remoteips)
-    hello = {'Type': 'hello', 'Keys': []}
-    for key in G_privateKeys.keys():
-        hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
-    hello = json.dumps(hello)
-    simpleSend(hello, G_remoteIps, 2222, timeout=1)
-    
-    # Ask for ledger from the other nodes 
-    nonce = random.randint(0, 1000)
-    async def ledgerRequestConnection(ip, loop):
-        future = asyncio.Future()
-        try:
-            await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
-                 future, nonce), ip , 2222)
-        except ConnectionRefusedError:
-            return
-        await future
-        return future
-
-    loop = asyncio.get_event_loop()
-    global G_ledgerResponses
-    tasks = []
-    for ip in G_remoteIps:
-        task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
-        tasks.append(task)
-    results = loop.run_until_complete(asyncio.gather(*tasks))   
-    i = 0
-    for res in results:
-        if res is not None:
-            G_ledgerResponses[i] = res.result()
-            i += 1
-    loop.close()
-
-    # Check if there is copy at more than 67% of total nodes
-    #   If no exit with error
-    # Replace ledger
-
     try:
         dcontext = DaemonContext(
             working_directory=MINICASHDIR,
@@ -508,15 +425,105 @@ def main():
         with dcontext:
             signal.signal(signal.SIGINT, interruptHandler)
             signal.signal(signal.SIGTERM, interruptHandler)
+            nodeThread = threading.Thread(target=nodeServer)
+            nodeThread.start()
+
+            # ---------  INITIAL CONNECTIONS ----------------
+
+            # Introduce our keys to the peer server and get other peers ips
+            peersRequest = {'Type': 'REGUP', 'Keys': []}
+            for key in G_privateKeys.keys():
+                peersRequest['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
+            peersRequest = json.dumps(peersRequest).encode('utf-8')
+
+            peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            serverIp = G_configuration['PEER_SERVER']['Ip']
+            serverPort = G_configuration['PEER_SERVER']['Port']
+            # Wait for a random amount of time for solving synchronization problems
+            time.sleep(random.uniform(0.0, 2.0))
+            logging.info('connecting to server {}:{}'.format(serverIp, serverPort))
+            try:
+                peersRequestSock.connect((serverIp, int(serverPort)))
+                peersRequestSock.sendall(peersRequest)
+                peersRequestSock.shutdown(socket.SHUT_WR)
+                peersResponse = str(peersRequestSock.recv(65535), 'utf-8')
+            except OSError as e:
+                logging.info('Problem connecting to the peer server: {}\nExiting..'.format(e))
+                stop()
+            finally:
+                peersRequestSock.close()
+
+            try:
+                peersResponse = json.loads(peersResponse)
+            except json.JSONDecodeError as e:
+                logging.info('Json error on peers server response: {}\nExiting..'.format(e))
+                stop()
+
+            if peersResponse['Response'] == 'Fail':
+                logging.info('Could not receive valid data from the peer server\n'
+                      '{}\nExiting..'.format(peersResponse['Reason']))
+                stop()
+            
+            maps = peersResponse['Maps']
+            for key, val in maps.items():
+                # Check the proof of work of the key.
+                if not isValidProof(key, val['Proof']):
+                    logging.info('The key {} is rejected because of invalid proof of work'.format(key))
+                    continue
+                # Try to download the key from the key server. If it's impossible continue
+                if not addToKeyring(key):
+                    logging.info('The key {} is rejected because can not be found on key server'.format(
+                                    key))
+                    continue
+                # Add the key to the keyring
+                G_peers[key] = val   
+
+
+            # Send hello to the other peers
+            remoteips = []
+            for proofIp in G_peers.values():
+                remoteips.append(proofIp['Ip'])
+            global G_remoteIps
+            G_remoteIps = set(remoteips)
+            hello = {'Type': 'hello', 'Keys': []}
+            for key in G_privateKeys.keys():
+                hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
+            hello = json.dumps(hello)
+            simpleSend(hello, G_remoteIps, 2222, timeout=1)
+            
+            # Ask for ledger from the other nodes 
+            nonce = random.randint(0, 1000)
+            async def ledgerRequestConnection(ip, loop):
+                future = asyncio.Future()
+                try:
+                    await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
+                         future, nonce), ip , 2222)
+                except ConnectionRefusedError:
+                    return
+                await future
+                return future
+
+            loop = asyncio.get_event_loop()
+            global G_ledgerResponses
+            tasks = []
+            for ip in G_remoteIps:
+                task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
+                tasks.append(task)
+            results = loop.run_until_complete(asyncio.gather(*tasks))   
+            i = 0
+            for res in results:
+                if res is not None:
+                    G_ledgerResponses[i] = res.result()
+                    i += 1
+            loop.close()
+
+            # Check if there is copy at more than 67% of total nodes
+            #   If no exit with error
+            # Replace ledger
+
             cliThread = threading.Thread(target=cliServer)
             cliThread.start()
 
-            loop = asyncio.new_event_loop()
-            server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
-            loop.run_forever()
-            server.close()
-            loop.run_until_complete(server.wait_closed())
-            loop.close()
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         stop()
