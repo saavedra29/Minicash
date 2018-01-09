@@ -155,7 +155,6 @@ def addKey(kwargs):
     if 'toStore' in kwargs:
         privateKeys = kwargs['toStore']
     else:
-        global G_privateKeys
         privateKeys = G_privateKeys
     privateKeys[fingerprint] = proof
 
