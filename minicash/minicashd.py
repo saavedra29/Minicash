@@ -255,8 +255,14 @@ class SynchronizerProtocol(asyncio.Protocol):
                 res = re.match('^[a-fA-F0-9]{16}$', fprint)
                 if res == None or not proof.isdigit():
                     continue
+                if fprint in G_peers:
+                    continue
                 # Check for valid proof of work
                 if not isValidProof(fprint, proof):
+                    continue
+                if not addToKeyring(key):
+                    logging.info('The key {} is rejected because can not\ 
+                                   be found on key server'.format(key))
                     continue
                 G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
         elif message['Type'] == 'REQ_LEDGER':
