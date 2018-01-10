@@ -465,6 +465,9 @@ def main():
             
             maps = peersResponse['Maps']
             for key, val in maps.items():
+                # Check if we already have the key in our file
+                if key in G_peers:
+                    continue
                 # Check the proof of work of the key.
                 if not isValidProof(key, val['Proof']):
                     logging.info('The key {} is rejected because of invalid proof of work'.format(key))
