@@ -261,8 +261,8 @@ class SynchronizerProtocol(asyncio.Protocol):
                 if not isValidProof(fprint, proof):
                     continue
                 if not addToKeyring(key):
-                    logging.info('The key {} is rejected because can not\ 
-                                   be found on key server'.format(key))
+                    logging.info('The key {} is rejected because can not' 
+                                 'be found on key server'.format(key))
                     continue
                 G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
         elif message['Type'] == 'REQ_LEDGER':
@@ -310,7 +310,11 @@ def cliServer():
 
 def nodeServer():
     loop = asyncio.new_event_loop()
-    server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
+    try:
+        server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
+    except OSError as e:
+        logging.error('Error running the node server: {}. Exiting..'.format(e))
+        stop()
     loop.run_forever()
     server.close()
     loop.run_until_complete(server.wait_closed())
