@@ -54,6 +54,28 @@ def signLedgerLocalKeys(nonce, ledger):
     return signaturesDict
     
 
+
+
+def sendHello(fprint=None, proof=None):
+    # Send hello to the other peers
+    remoteips = []
+    for proofIp in G_peers.values():
+        remoteips.append(proofIp['Ip'])
+    global G_remoteIps
+    G_remoteIps = set(remoteips)
+    hello = {'Type': 'hello', 'Keys': []}
+    if fprint == None:
+        for key in G_privateKeys.keys():
+            hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
+    else:
+        hello['Keys'].append({'Fingerprint': fprint, 'ProofOfWork': proof})
+    hello = json.dumps(hello)
+    simpleSend(hello, G_remoteIps, 2222, timeout=1)
+    for ip in G_remoteIps:
+        logging.info('Hello sent to {}'.format(ip))
+
+
+
 # COMMAND LINE FUNCTIONS
 def init(kwargs):
     # Create .minicash folder if not existing and enter it
@@ -162,10 +184,12 @@ def addKey(kwargs):
         response = gpg.send_keys(keyserver, '0x' + fingerprint).stderr
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
+            sendHello(fingerprint, proof)
             return {'Success': {}}
     
     del(G_privateKeys[fingerprint])
     return {'Fail': {'Reason': 'Problem uploading key to server'}}
+
     
     # ADD KEY TO LEDGER
     # Make new ledger copy with the key
@@ -253,7 +277,7 @@ class SynchronizerProtocol(asyncio.Protocol):
                 # Check for valid proof of work
                 if not isValidProof(fprint, proof):
                     continue
-                if not addToKeyring(key):
+                if not addToKeyring(fprint):
                     logging.info('The key {} is rejected because can not' 
                                  'be found on key server'.format(key))
                     continue
@@ -490,20 +514,8 @@ def main():
                     G_peers[key], val['Ip'], val['Proof']
                             ))
 
-
-            # Send hello to the other peers
-            remoteips = []
-            for proofIp in G_peers.values():
-                remoteips.append(proofIp['Ip'])
-            global G_remoteIps
-            G_remoteIps = set(remoteips)
-            hello = {'Type': 'hello', 'Keys': []}
-            for key in G_privateKeys.keys():
-                hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
-            hello = json.dumps(hello)
-            simpleSend(hello, G_remoteIps, 2222, timeout=1)
-            for ip in G_remoteIps:
-                logging.info('Hello sent to {}'.format(ip))
+            # Send hello to all nodes with peer list
+            sendHello()
             
             # Ask for ledger from the other nodes 
             nonce = random.randint(0, 1000)
