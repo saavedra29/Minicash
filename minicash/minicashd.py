@@ -185,6 +185,39 @@ def addKey(kwargs):
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
             sendHello(fingerprint, proof)
+
+            # UPDATE ALSO THE PEER SERVER
+            peersRequest = {'Type': 'REG', 'Keys': []}
+            for key in G_privateKeys.keys():
+                peersRequest['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
+            peersRequest = json.dumps(peersRequest).encode('utf-8')
+
+            peersRequestSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            serverIp = G_configuration['PEER_SERVER']['Ip']
+            serverPort = G_configuration['PEER_SERVER']['Port']
+            logging.info('connecting to server {}:{}'.format(serverIp, serverPort))
+            try:
+                peersRequestSock.connect((serverIp, int(serverPort)))
+                peersRequestSock.sendall(peersRequest)
+                peersRequestSock.shutdown(socket.SHUT_WR)
+                peersResponse = str(peersRequestSock.recv(65535), 'utf-8')
+            except OSError as e:
+                logging.info('Problem connecting to the peer server: {}\nExiting..'.format(e))
+                stop()
+            finally:
+                peersRequestSock.close()
+
+            try:
+                peersResponse = json.loads(peersResponse)
+            except json.JSONDecodeError as e:
+                logging.error('Json error on peers server response: {}\nExiting..'.format(e))
+                stop()
+
+            if peersResponse['Response'] == 'Fail':
+                logging.error('Could not receive valid data from the peer server\n'
+                      '{}\nExiting..'.format(peersResponse['Reason']))
+                stop()
+            
             return {'Success': {}}
     
     del(G_privateKeys[fingerprint])
