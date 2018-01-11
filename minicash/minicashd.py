@@ -78,7 +78,14 @@ def askForLedger():
     loop.close()
     while None in results:
         results.remove(None)
-    return nonce, results
+    rawResults = []
+    for res in results:
+        rawResults.append(res.result())
+    return nonce, rawResults
+
+# TODO Create function that checks if i can get a consesus valid ledger from the responses
+def getConsesusValidLedger(nonce, ledgerResponces):
+    pass
 
 
 def sendHello(fprint=None, proof=None):
@@ -579,11 +586,11 @@ def main():
             nonce, results = askForLedger()
             i = 0
             for res in results:
-                G_ledgerResponses[i] = res.result()
+                G_ledgerResponses[i] = res
+                # The ledger values are of dict type
+                # And the signatures of str type
                 i += 1
-                logging.info('Legder response arrived: {}'.format(res.result()))
 
-            # TODO Check for 67% consesus of the ledger
 
             logging.info('---MEMORY DATA----')
             logging.info('HOMEDIR: {}'.format(HOMEDIR))
