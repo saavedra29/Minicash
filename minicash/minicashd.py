@@ -54,6 +54,31 @@ def signLedgerLocalKeys(nonce, ledger):
     return signaturesDict
     
 
+def askForLedger():
+    nonce = random.randint(0, 1000)
+    async def ledgerRequestConnection(ip, loop):
+        future = asyncio.Future()
+        try:
+            # TODO What is this first argument in LedgerRequestProtocol?
+            await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
+                 future, nonce), ip , 2222)
+        except ConnectionRefusedError:
+            return
+        await future
+        return future
+
+    loop = asyncio.get_event_loop()
+    global G_ledgerResponses
+    tasks = []
+    for ip in G_remoteIps:
+        logging.info('Preparing ledger request for: {}'.format(ip))
+        task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
+        tasks.append(task)
+    results = loop.run_until_complete(asyncio.gather(*tasks))   
+    loop.close()
+    while None in results:
+        results.remove(None)
+    return nonce, results
 
 
 def sendHello(fprint=None, proof=None):
@@ -551,33 +576,14 @@ def main():
             sendHello()
             
             # Ask for ledger from the other nodes 
-            nonce = random.randint(0, 1000)
-            async def ledgerRequestConnection(ip, loop):
-                future = asyncio.Future()
-                try:
-                    # TODO What is this first argument in LedgerRequestProtocol?
-                    await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
-                         future, nonce), ip , 2222)
-                except ConnectionRefusedError:
-                    return
-                await future
-                return future
-
-            loop = asyncio.get_event_loop()
-            global G_ledgerResponses
-            tasks = []
-            for ip in G_remoteIps:
-                logging.info('Preparing ledger request for: {}'.format(ip))
-                task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
-                tasks.append(task)
-            results = loop.run_until_complete(asyncio.gather(*tasks))   
+            nonce, results = askForLedger()
             i = 0
             for res in results:
-                if res is not None:
-                    G_ledgerResponses[i] = res.result()
-                    logging.info('Legder response arrived: {}'.format(res.result()))
-                    i += 1
-            loop.close()
+                G_ledgerResponses[i] = res.result()
+                i += 1
+                logging.info('Legder response arrived: {}'.format(res.result()))
+
+            # TODO Check for 67% consesus of the ledger
 
             logging.info('---MEMORY DATA----')
             logging.info('HOMEDIR: {}'.format(HOMEDIR))
@@ -589,9 +595,6 @@ def main():
             logging.info('G_ledger: {}'.format(G_ledger))
             logging.info('---END OF MEMORY DATA---')
 
-            # Check if there is copy at more than 67% of total nodes
-            #   If no exit with error
-            # Replace ledger
 
             cliThread = threading.Thread(target=cliServer)
             cliThread.start()
