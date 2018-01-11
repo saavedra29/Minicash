@@ -36,26 +36,20 @@ GPGDIR = ''
 # take nonce and ledger and return dictionary with local keys as keys and the signatures of the
 # ledger's md5 as values
 def signLedgerLocalKeys(nonce, ledger):
-    logging.info('Ledger before dumping: {}'.format(ledger))
     dumpedLedger = json.dumps(ledger, sort_keys=True)
-    logging.info('Ledger after dumping: {}, type: {}'.format(dumpedLedger, type(dumpedLedger)))
     hashobj = hashlib.md5()
     hashobj.update(dumpedLedger.encode('utf-8'))
     hashedLedger = hashobj.hexdigest()
-    logging.info('hashedLedger: {}'.format(hashedLedger))
     dataToSign = str(nonce) + hashedLedger
-    logging.info('Data to sign: {}'.format(dataToSign))
     # Sign the checksum with all the local keys
     signaturesDict = {}
     gpg = gnupg.GPG(gnupghome=GPGDIR)
     for searchingKey in G_privateKeys.keys():
         for listedKey in gpg.list_keys(True):
             listedKey = listedKey['keyid']
-            logging.info('Checking {} with {} keys'.format(listedKey, searchingKey))
             if listedKey == searchingKey:
                 signedData = gpg.sign(dataToSign, keyid=searchingKey, detach=True,
                     passphrase='mylongminicashsillypassphrase')
-                logging.info('signature: {}'.format(signedData.data))
                 signaturesDict[searchingKey] = str(signedData.data, 'utf-8')
     return signaturesDict
     
@@ -152,14 +146,12 @@ def addKey(kwargs):
         return {'Fail': {'Reason': 'Wrong proof of work'}}
 
     # Add the key to the privateKeys
-    if 'toStore' in kwargs:
-        privateKeys = kwargs['toStore']
-    else:
-        privateKeys = G_privateKeys
-    privateKeys[fingerprint] = proof
+    global G_privateKeys
+    G_privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
     if 'noupload' in kwargs:
+        logging.warning('Adding key {} without uploading to key server'.format(fingerprint))
         return {'Success': {}}
 
     # Upload key to the key server
@@ -171,7 +163,7 @@ def addKey(kwargs):
         if not any(x in response for x in failureWords):
             return {'Success': {}}
     
-    del(privateKeys[fingerprint])
+    del(G_privateKeys[fingerprint])
     return {'Fail': {'Reason': 'Problem uploading key to server'}}
     
     # ADD KEY TO LEDGER
@@ -212,7 +204,7 @@ def stop():
         with open(os.path.join(MINICASHDIR, 'ledger.json'), 'w') as ledgerFile:
             ledgerFile.write(json.dumps(G_ledger, indent=4))
     except OSError as e:
-        print('While exiting program could not write memory data to disk: {}'.format(e))
+        logging.error('While exiting program could not write memory data to disk: {}'.format(e))
     finally:
         if not noPid:
             os.unlink(PIDPATH)
@@ -265,6 +257,9 @@ class SynchronizerProtocol(asyncio.Protocol):
                                  'be found on key server'.format(key))
                     continue
                 G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
+                logging.info('{} key with {} proof received from {}'.format(
+                    fprint, proof, self.peername[0]
+                            ))
         elif message['Type'] == 'REQ_LEDGER':
             if 'Nonce' not in message:
                 self.transport.close()
@@ -279,6 +274,7 @@ class SynchronizerProtocol(asyncio.Protocol):
                               'Signatures': signaturesDict}
             ledgerResponse = json.dumps(ledgerResponse)
             self.transport.write(ledgerResponse.encode('utf-8'))
+            logging.info('Ledger response: {}\nsent to {}'.format(ledgerResponse, self.peername[0]))
 
     def connection_lost(self, exc):
         self.transport.close()
@@ -465,11 +461,11 @@ def main():
             try:
                 peersResponse = json.loads(peersResponse)
             except json.JSONDecodeError as e:
-                logging.info('Json error on peers server response: {}\nExiting..'.format(e))
+                logging.error('Json error on peers server response: {}\nExiting..'.format(e))
                 stop()
 
             if peersResponse['Response'] == 'Fail':
-                logging.info('Could not receive valid data from the peer server\n'
+                logging.error('Could not receive valid data from the peer server\n'
                       '{}\nExiting..'.format(peersResponse['Reason']))
                 stop()
             
@@ -489,6 +485,9 @@ def main():
                     continue
                 # Add the key to the keyring
                 G_peers[key] = val   
+                logging.info('Peers Memory: Peer {} added from {} with proof of work {}'.format(
+                    G_peers[key], val['Ip'], val['Proof']
+                            ))
 
 
             # Send hello to the other peers
@@ -502,12 +501,15 @@ def main():
                 hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
             hello = json.dumps(hello)
             simpleSend(hello, G_remoteIps, 2222, timeout=1)
+            for ip in G_remoteIps:
+                logging.info('Hello sent to {}'.format(ip))
             
             # Ask for ledger from the other nodes 
             nonce = random.randint(0, 1000)
             async def ledgerRequestConnection(ip, loop):
                 future = asyncio.Future()
                 try:
+                    # TODO What is this first argument in LedgerRequestProtocol?
                     await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
                          future, nonce), ip , 2222)
                 except ConnectionRefusedError:
@@ -519,6 +521,7 @@ def main():
             global G_ledgerResponses
             tasks = []
             for ip in G_remoteIps:
+                logging.info('Preparing ledger request for: {}'.format(ip))
                 task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
                 tasks.append(task)
             results = loop.run_until_complete(asyncio.gather(*tasks))   
@@ -526,8 +529,19 @@ def main():
             for res in results:
                 if res is not None:
                     G_ledgerResponses[i] = res.result()
+                    logging.info('Legder response arrived: {}'.format(res.result()))
                     i += 1
             loop.close()
+
+            logging.info('---MEMORY DATA----')
+            logging.info('HOMEDIR: {}'.format(HOMEDIR))
+            logging.info('MINICASHDIR: {}'.format(MINICASHDIR))
+            logging.info('GPGDIR: {}'.format(GPGDIR))
+            logging.info('G_privateKeys: {}'.format(G_privateKeys))
+            logging.info('G_configuration: {}'.format(G_configuration))
+            logging.info('G_peers: {}'.format(G_peers))
+            logging.info('G_ledger: {}'.format(G_ledger))
+            logging.info('---END OF MEMORY DATA---')
 
             # Check if there is copy at more than 67% of total nodes
             #   If no exit with error

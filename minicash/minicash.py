@@ -117,7 +117,7 @@ pow_cmd.add_argument('key', help='The gpg key fingerprint')
 pow_cmd.set_defaults(func=genPow)
 # add-key subcommand
 addkey_cmd = subparser.add_parser('add-key', help='Add existing key in the node')
-addkey_cmd.add_argument('--noupload', action='store_true', help='Upload key to keyserver')
+addkey_cmd.add_argument('--noupload', action='store_true', help='Don\'t pload key to keyserver')
 addkey_cmd.add_argument('key', help='The gpg fingerprint')
 addkey_cmd.add_argument('pow', help='The proof of work number')
 addkey_cmd.set_defaults(func=addKey)
