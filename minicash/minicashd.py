@@ -150,7 +150,8 @@ def addKey(kwargs):
     G_privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
-    if 'noupload' in kwargs:
+    # if 'noupload' in kwargs:
+    if kwargs['noupload'] == True:
         logging.warning('Adding key {} without uploading to key server'.format(fingerprint))
         return {'Success': {}}
 
@@ -158,7 +159,7 @@ def addKey(kwargs):
     servers = G_configuration['KEY_SERVERS']['adresses']
 
     for keyserver in servers:
-        response = gpg.send_keys(keyserver, fingerprint).stderr
+        response = gpg.send_keys(keyserver, '0x' + fingerprint).stderr
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
             return {'Success': {}}
