@@ -18,6 +18,7 @@ from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
 from utils.client import simpleSend
 from utils.checksum import isValidProof
+from utils.parser import isValidLedgerResponseFormat
 
 # Global variables
 noPid = False
@@ -85,7 +86,33 @@ def askForLedger():
 
 # TODO Create function that checks if i can get a consesus valid ledger from the responses
 def getConsesusValidLedger(nonce, ledgerResponces):
-    pass
+    # Filter out the wrongly formatted responses
+    filteredResponses = []
+    # Dictionary with dumped ledgers for the keys and lists of really signed keys as the values
+    # Example: {'{'aris':23, 'Nick':40}': ['3EE3FD7A50CBD975', '8D972AA78B46CBF7'],..}
+    ledgersWithSignedKeys = {}
+    for response in ledgerResponces:
+        if isValidLedgerResponseFormat(response):
+            filteredResponses.append(response)
+    for response in filteredResponses:
+        # Get a tuple with dumped ledger as the first element and a list of really signed keys
+        # as the second element
+        # Combine this tuple with the ledgersWithSignedKeys dictionary
+    # Get dictionary of ledgers (dumped) with lists of voted fingerprints as values
+
+
+# Takes the response and return a tuple with the dumped ledger and the key that sureley signed it
+def isLedgerResponseValid(response):
+    # Add nonce to the beginning of the dumped ledger so get the data that is signed
+    #   so getting dataToCheck
+    # Loop in signatures
+    for signatures in response['Signatures']:
+    # If fingerprint is not in our database continue
+    # If the signature is not a valid signature continue
+    # If the signature does not belong to the fingerprint continue
+    # If the signatuer is not of dataToCheck continue
+    # Add the dumped ledger to the ledgerResults dictionary with the dumped ledger as key and the
+    #   fingerprint as value
 
 
 def sendHello(fprint=None, proof=None):
@@ -192,11 +219,7 @@ def addKey(kwargs):
         return {'Fail': {'Reason': 'Key not found in gpg database'}}
 
     # Check if pow is invalid for the key
-    keyhash = hashlib.sha256()
-    fingerproof = fingerprint + '_' + proof
-    keyhash.update(fingerproof.encode('utf-8'))
-    hashResult = keyhash.hexdigest()
-    if not hashResult.startswith('00000'):
+    if not isValidProof(fingerproof, proof):
         return {'Fail': {'Reason': 'Wrong proof of work'}}
 
     # Add the key to the privateKeys
@@ -360,7 +383,8 @@ class SynchronizerProtocol(asyncio.Protocol):
                 
             # Get dumped ledger's md5
             signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
-            ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': G_ledger,
+            dumpedLedger = json.dumps(ledger, sort_keys=True)
+            ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': dumpedLedger,
                               'Signatures': signaturesDict}
             ledgerResponse = json.dumps(ledgerResponse)
             self.transport.write(ledgerResponse.encode('utf-8'))
