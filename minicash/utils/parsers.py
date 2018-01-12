@@ -1,4 +1,5 @@
 import re
+import json
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -47,7 +48,7 @@ def isValidLedgerResponseFormat(res):
         return False 
     if res['Type'] != 'RESP_LEDGER':
         return False
-    if not isValidLedger(res['Ledger']):
+    if not isValidLedger(json.loads(res['Ledger'])):
         return False
     if len(res) != 3:
         return False
