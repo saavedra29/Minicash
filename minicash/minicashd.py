@@ -18,7 +18,7 @@ from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
 from utils.client import simpleSend
 from utils.checksum import isValidProof
-from utils.parser import isValidLedgerResponseFormat
+from utils.parsers import isValidLedgerResponseFormat
 
 # Global variables
 noPid = False
@@ -32,6 +32,7 @@ G_ledgerResponses = {}
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
+# pat = re.compile('(?<=\n\n)\w+')
 
 
 # take nonce and ledger and return dictionary with local keys as keys and the signatures of the
@@ -49,9 +50,11 @@ def signLedgerLocalKeys(nonce, ledger):
         for listedKey in gpg.list_keys(True):
             listedKey = listedKey['keyid']
             if listedKey == searchingKey:
-                signedData = gpg.sign(dataToSign, keyid=searchingKey, detach=True,
+                # signedData = gpg.sign(dataToSign, keyid=searchingKey, detach=True,
+                logging.info('singing with nonce {}'.format(str(nonce)))
+                signedData = gpg.sign(dataToSign, keyid=searchingKey,
                     passphrase='mylongminicashsillypassphrase')
-                signaturesDict[searchingKey] = str(signedData.data, 'utf-8')
+                signaturesDict[searchingKey] = str(signedData)
     return signaturesDict
     
 
@@ -69,7 +72,6 @@ def askForLedger():
         return future
 
     loop = asyncio.get_event_loop()
-    global G_ledgerResponses
     tasks = []
     for ip in G_remoteIps:
         logging.info('Preparing ledger request for: {}'.format(ip))
@@ -95,24 +97,50 @@ def getConsesusValidLedger(nonce, ledgerResponces):
         if isValidLedgerResponseFormat(response):
             filteredResponses.append(response)
     for response in filteredResponses:
-        # Get a tuple with dumped ledger as the first element and a list of really signed keys
-        # as the second element
-        # Combine this tuple with the ledgersWithSignedKeys dictionary
-    # Get dictionary of ledgers (dumped) with lists of voted fingerprints as values
+        ledger = reponse['Ledger']
+        signedKeys = getKeysThatSignedLedger(nonce, response)
+        if ledger not in ledgersWithSignedKeys:
+            ledgersWithSignedKeys[ledger] = signedKeys
+        else:
+            ledgersWithSignedKeys[ledger] = ledgersWithSignedKeys[ledger].extend(signedKeys)
+        ledgersWithSignedKeys[ledger] = list(set(ledgersWithSignedKeys[ledger]))
+    numberOfKeysThatVote = len(G_peers) 
+    for ledger in ledgersWithSignedKeys:
+        if len(ledgersWithSignedKeys[ledger]) > 67/100 * numberOfKeysThatVote:
+            return ledger
+    return None
 
-
-# Takes the response and return a tuple with the dumped ledger and the key that sureley signed it
-def isLedgerResponseValid(response):
+# Takes the response and nonce and return a list with the keys that really signed the ledger
+def getKeysThatSignedLedger(nonce, response):
+    gpg = gnupg.GPG(gnupghome=GPGDIR)
     # Add nonce to the beginning of the dumped ledger so get the data that is signed
     #   so getting dataToCheck
+    dataToCheck = str(nonce) + response['Ledger']
+    validKeys = []
+    keysSignaturesDict = response['Signatures']
     # Loop in signatures
-    for signatures in response['Signatures']:
-    # If fingerprint is not in our database continue
-    # If the signature is not a valid signature continue
-    # If the signature does not belong to the fingerprint continue
-    # If the signatuer is not of dataToCheck continue
-    # Add the dumped ledger to the ledgerResults dictionary with the dumped ledger as key and the
-    #   fingerprint as value
+    for fprint in keysSignaturesDict:
+        for key in gpg.list_keys():
+            if key['keyid'] == fprint
+                foundKey = True
+                break
+        if not 'foundKey' in locals():
+            continue
+        signature = keysSignaturesDict[fprint]
+        verification = gpg.verify(signature)
+        if verification.key_id != fprint:
+            continue
+        if verification.status != 'signature valid':
+            continue
+        messagePattern = re.compile('(?<=\n\n)\w+')
+        extractFromSignature = messagePattern.search(signature)
+        if extractFromSignature is None:
+            continue
+        result =  extractFromSignature.group(0)
+        if result != dataToCheck:
+            continue
+        validKeys.append(fprint)
+    return validKeys
 
 
 def sendHello(fprint=None, proof=None):
@@ -383,7 +411,7 @@ class SynchronizerProtocol(asyncio.Protocol):
                 
             # Get dumped ledger's md5
             signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
-            dumpedLedger = json.dumps(ledger, sort_keys=True)
+            dumpedLedger = json.dumps(G_ledger, sort_keys=True)
             ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': dumpedLedger,
                               'Signatures': signaturesDict}
             ledgerResponse = json.dumps(ledgerResponse)
@@ -499,6 +527,8 @@ def main():
     logging.basicConfig(format='%(asctime)s => (%(levelname)-8s) %(message)s', level=logLevel,
                         filename=os.path.join(MINICASHDIR, 'minicash.log'),
                         filemode='w')
+    logging.info('The program started')
+    print('Program started')
 
     ## Load the configuration
     try:
@@ -542,6 +572,7 @@ def main():
         dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
         print('Staring the daemon..')
         with dcontext:
+            logging.info('Inside the context')
             signal.signal(signal.SIGINT, interruptHandler)
             signal.signal(signal.SIGTERM, interruptHandler)
             nodeThread = threading.Thread(target=nodeServer)
@@ -608,7 +639,11 @@ def main():
             
             # Ask for ledger from the other nodes 
             nonce, results = askForLedger()
+            consesusLedger = getConsesusValidLedger(nonce, results)
+            if consesusLedger != None:
+                G_ledger = consesusLedger
             i = 0
+            global G_ledgerResponses
             for res in results:
                 G_ledgerResponses[i] = res
                 # The ledger values are of dict type
