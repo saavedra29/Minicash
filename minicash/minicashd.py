@@ -97,11 +97,13 @@ def getConsesusValidLedger(nonce, ledgerResponces):
         if isValidLedgerResponseFormat(response):
             filteredResponses.append(response)
         else:
-            logging.info('One ledger response aborted..')
+            logging.warning('One ledger response aborted for faulty format')
+            logging.warning('--------- FAULTY FORMATTED LEDGER RESPONSE ----------') 
+            logging.warning(response)
     for response in filteredResponses:
         ledger = response['Ledger']
         signedKeys = getKeysThatSignedLedger(nonce, response)
-        logging.info('-------- Ledger and keys that signed -------')
+        logging.info('-------- Filtered ledger and keys that signed it -------')
         logging.info('Ledger: {}'.format(ledger))
         logging.info('Keys: {}'.format(signedKeys))
         if ledger not in ledgersWithSignedKeys:
@@ -111,11 +113,15 @@ def getConsesusValidLedger(nonce, ledgerResponces):
         setKeys = set(ledgersWithSignedKeys[ledger])
         ledgersWithSignedKeys[ledger] = list(setKeys)
     numberOfKeysThatVote = len(G_peers) 
-    logging.info('{} keys vote!'.format(numberOfKeysThatVote))
+    logging.info('{} keys voting!'.format(numberOfKeysThatVote))
     for ledger in ledgersWithSignedKeys:
-        if len(ledgersWithSignedKeys[ledger]) > 67/100 * numberOfKeysThatVote:
+        positiveVotes = len(ledgersWithSignedKeys[ledger])
+        if positiveVotes > 67/100 * numberOfKeysThatVote:
             logging.info('-------- NEW VOTED LEDGER ----------')
-            logging.info('{}'.format(ledger))
+            logging.info('Ledger: {}'.format(ledger))
+            logging.info('{} keys signed for the ledger out of {} keys that voted'.format(
+                            positiveVotes, numberOfKeysThatVote))
+            logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
             return ledger
     return None
 
@@ -433,12 +439,12 @@ class SynchronizerProtocol(asyncio.Protocol):
                 
             # Get dumped ledger's md5
             signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
+            # TODO ledger gets doubledumped
             dumpedLedger = json.dumps(G_ledger, sort_keys=True)
             ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': dumpedLedger,
                               'Signatures': signaturesDict}
             ledgerResponse = json.dumps(ledgerResponse)
             self.transport.write(ledgerResponse.encode('utf-8'))
-            logging.info('Ledger response: {}\nsent to {}'.format(ledgerResponse, self.peername[0]))
 
     def connection_lost(self, exc):
         self.transport.close()
@@ -594,7 +600,6 @@ def main():
         dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
         print('Staring the daemon..')
         with dcontext:
-            logging.info('Inside the context')
             signal.signal(signal.SIGINT, interruptHandler)
             signal.signal(signal.SIGTERM, interruptHandler)
             nodeThread = threading.Thread(target=nodeServer)
@@ -661,8 +666,10 @@ def main():
             
             # Ask for ledger from the other nodes 
             nonce, results = askForLedger()
+            logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
-                logging.info('Ledger reponse received from keys {}'.format(response['Signatures'].keys()))
+                logging.info('Ledger uninspected reponse received from keys {}'.format(
+                                response['Signatures'].keys()))
             consesusLedger = getConsesusValidLedger(nonce, results)
             if consesusLedger != None:
                 G_ledger = consesusLedger
