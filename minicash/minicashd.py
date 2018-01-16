@@ -94,10 +94,12 @@ def getConsesusValidLedger(nonce, ledgerResponces):
     # Example: {'{'aris':23, 'Nick':40}': ['3EE3FD7A50CBD975', '8D972AA78B46CBF7'],..}
     ledgersWithSignedKeys = {}
     for response in ledgerResponces:
-        if isValidLedgerResponseFormat(response):
+        ledgerCheck = isValidLedgerResponseFormat(response)
+        if not ledgerCheck:
             filteredResponses.append(response)
         else:
             logging.warning('One ledger response aborted for faulty format')
+            logging.warning('Reason: {}'.format(ledgerCheck))
             logging.warning('--------- FAULTY FORMATTED LEDGER RESPONSE ----------') 
             logging.warning(response)
     for response in filteredResponses:

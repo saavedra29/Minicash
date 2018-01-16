@@ -36,9 +36,9 @@ class TestValidLedger(unittest.TestCase):
 
             
         for v in validLedgers:
-            self.assertTrue(isValidLedger(v))
-        for v in invalidLedgers:
             self.assertFalse(isValidLedger(v))
+        for v in invalidLedgers:
+            self.assertTrue(isValidLedger(v))
 
     def testValidResponseFormat(self):
         validResponses = [
@@ -62,9 +62,9 @@ class TestValidLedger(unittest.TestCase):
         ]
 
         for v in validResponses:
-            self.assertTrue(isValidLedgerResponseFormat(v))
-        for v in invalidResponses:
             self.assertFalse(isValidLedgerResponseFormat(v))
+        for v in invalidResponses:
+            self.assertTrue(isValidLedgerResponseFormat(v))
 
 
 if __name__ == '__main__':
