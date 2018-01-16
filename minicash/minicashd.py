@@ -28,11 +28,9 @@ G_configuration = {}
 G_peers = {}
 G_ledger = {}
 G_remoteIps = set()
-G_ledgerResponses = {}
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
-# pat = re.compile('(?<=\n\n)\w+')
 
 
 # take nonce and ledger and return dictionary with local keys as keys and the signatures of the
@@ -50,8 +48,6 @@ def signLedgerLocalKeys(nonce, ledger):
         for listedKey in gpg.list_keys(True):
             listedKey = listedKey['keyid']
             if listedKey == searchingKey:
-                # signedData = gpg.sign(dataToSign, keyid=searchingKey, detach=True,
-                logging.info('singing with nonce {}'.format(str(nonce)))
                 signedData = gpg.sign(dataToSign, keyid=searchingKey,
                     passphrase='mylongminicashsillypassphrase')
                 signaturesDict[searchingKey] = str(signedData)
@@ -63,9 +59,7 @@ def askForLedger():
     async def ledgerRequestConnection(ip, loop):
         future = asyncio.Future()
         try:
-            # TODO What is this first argument in LedgerRequestProtocol?
-            await loop.create_connection(lambda: LedgerRequestProtocol('From {}'.format(ip),
-                 future, nonce), ip , 2222)
+            await loop.create_connection(lambda: LedgerRequestProtocol(future, nonce), ip , 2222)
         except ConnectionRefusedError:
             return
         await future
@@ -74,7 +68,6 @@ def askForLedger():
     loop = asyncio.get_event_loop()
     tasks = []
     for ip in G_remoteIps:
-        logging.info('Preparing ledger request for: {}'.format(ip))
         task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
         tasks.append(task)
     results = loop.run_until_complete(asyncio.gather(*tasks))   
@@ -86,7 +79,6 @@ def askForLedger():
         rawResults.append(res.result())
     return nonce, rawResults
 
-# TODO Create function that checks if i can get a consesus valid ledger from the responses
 def getConsesusValidLedger(nonce, ledgerResponces):
     # Filter out the wrongly formatted responses
     filteredResponses = []
@@ -130,8 +122,6 @@ def getConsesusValidLedger(nonce, ledgerResponces):
 # Takes the response and nonce and return a list with the keys that really signed the ledger
 def getKeysThatSignedLedger(nonce, response):
     gpg = gnupg.GPG(gnupghome=GPGDIR)
-    # Add nonce to the beginning of the dumped ledger so get the data that is signed
-    #   so getting dataToCheck
     nonce = str(nonce)
     ledger = response['Ledger']
     ledger = json.dumps(ledger, sort_keys=True)
@@ -336,13 +326,13 @@ def addKey(kwargs):
     
     del(G_privateKeys[fingerprint])
     return {'Fail': {'Reason': 'Problem uploading key to server'}}
-
     
     # ADD KEY TO LEDGER
     # Make new ledger copy with the key
     # Send it for vote
     #   If not voted exit with fail
     # Refresh the ledger
+
 
 def listPeers(kwargs):
     return {'Success': G_peers}
@@ -355,8 +345,10 @@ def listLocalKeys(kwargs):
 def getBalances(kwargs):
     return kwargs
 
+
 def getLedger(kwargs):
     return {'Success': G_ledger}
+
 
 def pay(kwargs):
     return kwargs
@@ -365,8 +357,10 @@ def pay(kwargs):
 def interruptHandler(signum, frame):
     stop()
 
+
 def getLogInfo(kwargs):
-    return {'Success': G_ledgerResponses}
+    return {'Success': 'Nothing yet..'}
+
 
 def stop():
     # Save memory data to filesystem
@@ -444,8 +438,6 @@ class SynchronizerProtocol(asyncio.Protocol):
                 
             # Get dumped ledger's md5
             signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
-            # TODO ledger gets doubledumped
-            # dumpedLedger = json.dumps(G_ledger, sort_keys=True)
             ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': G_ledger,
                               'Signatures': signaturesDict}
             ledgerResponse = json.dumps(ledgerResponse, sort_keys=True)
@@ -676,19 +668,9 @@ def main():
             for response in results:
                 logging.info('Ledger uninspected reponse received from keys {}'.format(
                                 response['Signatures'].keys()))
-                logging.info('Response type: {}'.format(type(response)))
-                logging.info('Type of ledger: {}'.format(type(response['Ledger'])))
             consesusLedger = getConsesusValidLedger(nonce, results)
             if consesusLedger != None:
                 G_ledger = consesusLedger
-                logging.info('New ledger: {}'.format(G_ledger))
-            i = 0
-            global G_ledgerResponses
-            for res in results:
-                G_ledgerResponses[i] = res
-                # The ledger values are of dict type
-                # And the signatures of str type
-                i += 1
 
 
             logging.info('---MEMORY DATA----')

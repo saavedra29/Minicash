@@ -2,8 +2,7 @@ import asyncio
 import json
 
 class LedgerRequestProtocol(asyncio.Protocol):
-    def __init__(self, message, future, nonce):
-        self.message = message
+    def __init__(self, future, nonce):
         self.future = future
         self.nonce = nonce
 
