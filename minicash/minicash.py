@@ -58,6 +58,8 @@ def listPeers(args):
 def getBalances(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
+def getLedger(args):
+    pp.pprint(runCommand(inspect.stack()[0][3], args))
 
 def pay(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
@@ -101,6 +103,9 @@ init_cmd.set_defaults(func=init)
 # list-nodes subcommand
 listnodes_cmd = subparser.add_parser('listpeers', help='List all online nodes in the network')
 listnodes_cmd.set_defaults(func=listPeers)
+# getledger subcommand
+getledger_cmd = subparser.add_parser('getledger', help='Print the current ledger')
+getledger_cmd.set_defaults(func=getLedger)
 # getloginfo subcommand
 init_cmd = subparser.add_parser('getloginfo', help='Read the log file')
 init_cmd.set_defaults(func=getLogInfo)

@@ -355,6 +355,8 @@ def listLocalKeys(kwargs):
 def getBalances(kwargs):
     return kwargs
 
+def getLedger(kwargs):
+    return {'Success': G_ledger}
 
 def pay(kwargs):
     return kwargs
@@ -459,6 +461,7 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         data = self.request.recv(64000)
 
         dispatcher.add_method(init)
+        dispatcher.add_method(getLedger)
         dispatcher.add_method(listLocalKeys)
         dispatcher.add_method(listPeers)
         dispatcher.add_method(getBalances)
