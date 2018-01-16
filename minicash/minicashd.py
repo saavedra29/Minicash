@@ -96,17 +96,26 @@ def getConsesusValidLedger(nonce, ledgerResponces):
     for response in ledgerResponces:
         if isValidLedgerResponseFormat(response):
             filteredResponses.append(response)
+        else:
+            logging.info('One ledger response aborted..')
     for response in filteredResponses:
-        ledger = reponse['Ledger']
+        ledger = response['Ledger']
         signedKeys = getKeysThatSignedLedger(nonce, response)
+        logging.info('-------- Ledger and keys that signed -------')
+        logging.info('Ledger: {}'.format(ledger))
+        logging.info('Keys: {}'.format(signedKeys))
         if ledger not in ledgersWithSignedKeys:
             ledgersWithSignedKeys[ledger] = signedKeys
         else:
-            ledgersWithSignedKeys[ledger] = ledgersWithSignedKeys[ledger].extend(signedKeys)
-        ledgersWithSignedKeys[ledger] = list(set(ledgersWithSignedKeys[ledger]))
+            ledgersWithSignedKeys[ledger].extend(signedKeys)
+        setKeys = set(ledgersWithSignedKeys[ledger])
+        ledgersWithSignedKeys[ledger] = list(setKeys)
     numberOfKeysThatVote = len(G_peers) 
+    logging.info('{} keys vote!'.format(numberOfKeysThatVote))
     for ledger in ledgersWithSignedKeys:
         if len(ledgersWithSignedKeys[ledger]) > 67/100 * numberOfKeysThatVote:
+            logging.info('-------- NEW VOTED LEDGER ----------')
+            logging.info('{}'.format(ledger))
             return ledger
     return None
 
@@ -115,13 +124,20 @@ def getKeysThatSignedLedger(nonce, response):
     gpg = gnupg.GPG(gnupghome=GPGDIR)
     # Add nonce to the beginning of the dumped ledger so get the data that is signed
     #   so getting dataToCheck
-    dataToCheck = str(nonce) + response['Ledger']
+    nonce = str(nonce)
+    ledger = response['Ledger']
+    hashobj = hashlib.md5()
+    hashobj.update(ledger.encode('utf-8'))
+    hashedLedger = hashobj.hexdigest()
+    dataToCheck= str(nonce) + hashedLedger
+    
     validKeys = []
     keysSignaturesDict = response['Signatures']
     # Loop in signatures
     for fprint in keysSignaturesDict:
         for key in gpg.list_keys():
-            if key['keyid'] == fprint
+            if key['keyid'] == fprint:
+                logging.info('Checking key {}..'.format(fprint))
                 foundKey = True
                 break
         if not 'foundKey' in locals():
@@ -129,15 +145,21 @@ def getKeysThatSignedLedger(nonce, response):
         signature = keysSignaturesDict[fprint]
         verification = gpg.verify(signature)
         if verification.key_id != fprint:
+            logging.info('Wrong verification keyid')
             continue
         if verification.status != 'signature valid':
+            logging.info('Not valid signature')
             continue
         messagePattern = re.compile('(?<=\n\n)\w+')
         extractFromSignature = messagePattern.search(signature)
         if extractFromSignature is None:
+            logging.info('Wrong signature format')
             continue
         result =  extractFromSignature.group(0)
         if result != dataToCheck:
+            logging.info('Signed data is not the expected')
+            logging.info('Result: {}'.format(result))
+            logging.info('dataToCheck: {}'.format(dataToCheck))
             continue
         validKeys.append(fprint)
     return validKeys
@@ -247,7 +269,7 @@ def addKey(kwargs):
         return {'Fail': {'Reason': 'Key not found in gpg database'}}
 
     # Check if pow is invalid for the key
-    if not isValidProof(fingerproof, proof):
+    if not isValidProof(fingerprint, proof):
         return {'Fail': {'Reason': 'Wrong proof of work'}}
 
     # Add the key to the privateKeys
@@ -639,9 +661,12 @@ def main():
             
             # Ask for ledger from the other nodes 
             nonce, results = askForLedger()
+            for response in results:
+                logging.info('Ledger reponse received from keys {}'.format(response['Signatures'].keys()))
             consesusLedger = getConsesusValidLedger(nonce, results)
             if consesusLedger != None:
                 G_ledger = consesusLedger
+                logging.info('New ledger: {}'.format(G_ledger))
             i = 0
             global G_ledgerResponses
             for res in results:
