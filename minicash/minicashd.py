@@ -101,7 +101,7 @@ def getConsesusValidLedger(nonce, ledgerResponces):
             logging.warning('--------- FAULTY FORMATTED LEDGER RESPONSE ----------') 
             logging.warning(response)
     for response in filteredResponses:
-        ledger = response['Ledger']
+        ledger = json.dumps(response['Ledger'], sort_keys=True)
         signedKeys = getKeysThatSignedLedger(nonce, response)
         logging.info('-------- Filtered ledger and keys that signed it -------')
         logging.info('Ledger: {}'.format(ledger))
@@ -122,7 +122,7 @@ def getConsesusValidLedger(nonce, ledgerResponces):
             logging.info('{} keys signed for the ledger out of {} keys that voted'.format(
                             positiveVotes, numberOfKeysThatVote))
             logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
-            return ledger
+            return json.loads(ledger)
     return None
 
 # Takes the response and nonce and return a list with the keys that really signed the ledger
@@ -132,6 +132,7 @@ def getKeysThatSignedLedger(nonce, response):
     #   so getting dataToCheck
     nonce = str(nonce)
     ledger = response['Ledger']
+    ledger = json.dumps(ledger, sort_keys=True)
     hashobj = hashlib.md5()
     hashobj.update(ledger.encode('utf-8'))
     hashedLedger = hashobj.hexdigest()
@@ -440,10 +441,10 @@ class SynchronizerProtocol(asyncio.Protocol):
             # Get dumped ledger's md5
             signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
             # TODO ledger gets doubledumped
-            dumpedLedger = json.dumps(G_ledger, sort_keys=True)
-            ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': dumpedLedger,
+            # dumpedLedger = json.dumps(G_ledger, sort_keys=True)
+            ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': G_ledger,
                               'Signatures': signaturesDict}
-            ledgerResponse = json.dumps(ledgerResponse)
+            ledgerResponse = json.dumps(ledgerResponse, sort_keys=True)
             self.transport.write(ledgerResponse.encode('utf-8'))
 
     def connection_lost(self, exc):
@@ -670,6 +671,8 @@ def main():
             for response in results:
                 logging.info('Ledger uninspected reponse received from keys {}'.format(
                                 response['Signatures'].keys()))
+                logging.info('Response type: {}'.format(type(response)))
+                logging.info('Type of ledger: {}'.format(type(response['Ledger'])))
             consesusLedger = getConsesusValidLedger(nonce, results)
             if consesusLedger != None:
                 G_ledger = consesusLedger

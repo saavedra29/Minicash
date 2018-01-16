@@ -40,7 +40,7 @@ def isValidLedger(ledger):
     return True
 
 
-# Checks if he ledger response is formated correctly. This is a dict
+# Checks if the ledger response is formated correctly. This is a dict
 def isValidLedgerResponseFormat(res):
     if type(res) is not dict:
         return False 
@@ -48,7 +48,7 @@ def isValidLedgerResponseFormat(res):
         return False 
     if res['Type'] != 'RESP_LEDGER':
         return False
-    if not isValidLedger(json.loads(res['Ledger'])):
+    if not isValidLedger(res['Ledger']):
         return False
     if len(res) != 3:
         return False
