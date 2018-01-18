@@ -361,8 +361,10 @@ def interruptHandler(signum, frame):
     stop()
 
 
-def getLogInfo(kwargs):
-    return {'Success': 'Nothing yet..'}
+def introduceKeyToLedger(kwargs):
+    return {'Success': 'Key to add: {}'.format(kwargs['keytoadd'])}
+        
+        
 
 
 def stop():
@@ -463,7 +465,7 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         dispatcher.add_method(pay)
         dispatcher.add_method(addKey)
         dispatcher.add_method(stop)
-        dispatcher.add_method(getLogInfo)
+        dispatcher.add_method(introduceKeyToLedger)
 
         response = JSONRPCResponseManager.handle(
             str(data, 'utf-8'), dispatcher)

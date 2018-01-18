@@ -74,7 +74,7 @@ def genPow(args):
 def addKey(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
-def getLogInfo(args):
+def introduceKeyToLedger(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
 def stop(args):
@@ -107,8 +107,10 @@ listnodes_cmd.set_defaults(func=listPeers)
 getledger_cmd = subparser.add_parser('getledger', help='Print the current ledger')
 getledger_cmd.set_defaults(func=getLedger)
 # getloginfo subcommand
-init_cmd = subparser.add_parser('getloginfo', help='Read the log file')
-init_cmd.set_defaults(func=getLogInfo)
+introduceKeyToLedger_cmd = subparser.add_parser('introducekeytoledger', help='Introduce the key'
+                                                ' to the ledger')
+introduceKeyToLedger_cmd.add_argument('keytoadd', help='Key to add to the ledger')
+introduceKeyToLedger_cmd.set_defaults(func=introduceKeyToLedger)
 # listlocalkeys subcommand
 listlocalkeys_cmd = subparser.add_parser('listlocalkeys', help='List all local keys fingerprints')
 listlocalkeys_cmd.set_defaults(func=listLocalKeys)
