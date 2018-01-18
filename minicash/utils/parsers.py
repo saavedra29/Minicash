@@ -37,6 +37,13 @@ def isValidLedger(ledger):
         # Check if balance is 0 or above
         if value < 0:
             return '@Ledger not valid: balance below 0'
+        # Check if the sum of all balances is 100000000 times the number of keys
+        numOfKeys = len(ledger)
+        balancesSum = 0
+        for balance in ledger.values():
+            balancesSum += balance
+        if balancesSum / numOfKeys != 100000000:
+            return '@Ledger not valid: not balanced balances'
     return False
 
 
