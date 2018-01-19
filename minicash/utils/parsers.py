@@ -72,3 +72,35 @@ def isValidLedgerResponseFormat(res):
             return '@Ledger response wrong format: Wrong fingerprint format'
     return False
 
+
+class PacketParser:
+    def __init__(self, packet):
+        self.packet = packet
+        self.message = None
+        self.type = None
+        self.data = None
+        self.result = None
+    
+    def isPacketValid(self):
+        # Check of valid json data
+        try:
+            self.message = json.loads(self.packet)
+        except (json.JSONDecodeError, TypeError):
+            return False
+        
+        return True
+        # Check for type and data keys
+        
+    
+    def getData(self):
+        pass
+
+    def getType(self):
+        pass
+
+    
+
+
+
+
+    

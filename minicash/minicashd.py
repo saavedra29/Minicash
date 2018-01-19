@@ -393,9 +393,8 @@ class SynchronizerProtocol(asyncio.Protocol):
         self.transport = transport
 
     def data_received(self, data):
-        message = data.decode('utf-8')
         try:
-            message = json.loads(message)
+            message = json.loads(data)
         except json.JSONDecodeError as e:
             self.transport.close()
             return
