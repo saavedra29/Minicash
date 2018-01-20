@@ -108,7 +108,10 @@ def getConsesusValidLedger(ledgerResponces):
         setKeys = set(ledgersWithSignedKeys[ledger])
         ledgersWithSignedKeys[ledger] = list(setKeys)
     numberOfKeysThatVote = len(G_peers) 
+    logging.info('-------- VOTING TABLE ---------')
     logging.info('{} keys voting!'.format(numberOfKeysThatVote))
+    for ledger in ledgersWithSignedKeys:
+        logging.warning('LEDGER: {}\n\t\t\tVOTERS: {}'.format(ledger, len(ledgersWithSignedKeys[ledger])))
     for ledger in ledgersWithSignedKeys:
         positiveVotes = len(ledgersWithSignedKeys[ledger])
         if positiveVotes > 67/100 * numberOfKeysThatVote:
@@ -119,8 +122,6 @@ def getConsesusValidLedger(ledgerResponces):
             logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
             return json.loads(ledger)
     logging.warning('-------- NO CONSESUS FOR A LEDGER -------')
-    for ledger in ledgersWithSignedKeys:
-        logging.warning('Ledger: {}\n\tVoters: {}'.format(ledger, len(ledgersWithSignedKeys[ledger])))
     return None
 
 # Takes the response and nonce and return a list with the keys that really signed the ledger
