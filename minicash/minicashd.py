@@ -295,7 +295,7 @@ def addKey(kwargs):
             sendHello(fingerprint, proof)
 
             # UPDATE ALSO THE PEER SERVER
-            peersRequest = {'Type': 'REG', 'Keys': []}
+            peersRequest = {'Type': 'REGUP', 'Keys': []}
             for key in G_privateKeys.keys():
                 peersRequest['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
             peersRequest = json.dumps(peersRequest).encode('utf-8')
