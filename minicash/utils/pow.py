@@ -14,7 +14,7 @@ def checkHash(argsList):
         newHash.update(newFeed.encode('utf-8'))
         result = newHash.hexdigest()
         if result.startswith(pattern):
-            return str(coreId)
+            return coreId
 
 def signalIgnorer():
     signal.signal(signal.SIGINT, signal.SIG_IGN)

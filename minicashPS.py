@@ -44,12 +44,12 @@ class PeerHandler(socketserver.BaseRequestHandler):
         for key in peerRequest['Keys']:
             fprint = key['Fingerprint']
             proof = key['ProofOfWork']
-            if (type(fprint) is not str) or (type(proof) is not str):
+            if (type(fprint) is not str) or (type(proof) is not int):
                 partial = True
                 continue
             # Check for correct fingerprint format
             res = re.match('^[a-fA-F0-9]{16}$', fprint)
-            if res == None or not proof.isdigit():
+            if res == None:
                 partial = True
                 continue
             # Check for valid proof of work

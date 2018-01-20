@@ -28,18 +28,14 @@ def addKey(kwargs):
 
     # Check if pow is invalid for the key
     keyhash = hashlib.sha256()
-    fingerproof = fingerprint + '_' + proof
+    fingerproof = fingerprint + '_' + str(proof)
     keyhash.update(fingerproof.encode('utf-8'))
     hashResult = keyhash.hexdigest()
     if not hashResult.startswith('00000'):
         return {'Fail': {'Reason': 'Wrong proof of work'}}
 
     # Add the key to the privateKeys
-    if 'toStore' in kwargs:
-        privateKeys = kwargs['toStore']
-    else:
-        global G_privateKeys
-        privateKeys = G_privateKeys
+    privateKeys = kwargs['toStore']
     privateKeys[fingerprint] = proof
 
     # Return if uploading to server is not requested
@@ -68,7 +64,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('homedir', type=str, nargs='+',
                         help='Directory inside which .minicash folder should be created')
-    parser.add_argument('keysnum', type=str, help='Number of keys to create')
+    parser.add_argument('keysnum', type=int, help='Number of keys to create')
     args = parser.parse_args()
 
     for path in args.homedir:
@@ -93,7 +89,7 @@ def main():
             return
 
         # Create and add the keys 
-        keysnum = int(args.keysnum)
+        keysnum = args.keysnum
         try:
             gpg = gnupg.GPG(gnupghome=GPGDIR)
         except Exception as e:

@@ -19,6 +19,7 @@ from daemon.daemon import DaemonOSEnvironmentError
 from utils.client import simpleSend
 from utils.checksum import isValidProof
 from utils.parsers import isValidLedgerResponseFormat
+from utils.parsers import PacketParser
 
 # Global variables
 noPid = False
@@ -174,12 +175,12 @@ def sendHello(fprint=None, proof=None):
         remoteips.append(proofIp['Ip'])
     global G_remoteIps
     G_remoteIps = set(remoteips)
-    hello = {'Type': 'hello', 'Keys': []}
+    hello = {'Type': 'HELLO', 'Data': []}
     if fprint == None:
         for key in G_privateKeys.keys():
-            hello['Keys'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
+            hello['Data'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
     else:
-        hello['Keys'].append({'Fingerprint': fprint, 'ProofOfWork': proof})
+        hello['Data'].append({'Fingerprint': fprint, 'ProofOfWork': proof})
     hello = json.dumps(hello)
     simpleSend(hello, G_remoteIps, 2222, timeout=1)
     for ip in G_remoteIps:
@@ -398,40 +399,27 @@ class SynchronizerProtocol(asyncio.Protocol):
         except json.JSONDecodeError as e:
             self.transport.close()
             return
-        if 'Type' not in message:
-            self.transport.close()
+        
+        parser = PacketParser(message)
+        if not parser.isPacketValid():
+            logging.warning('Invalid incoming data => {}'.format(parser.errorMessage))
             return
-        # If message is hello record the new key-ip pairs
-        if message['Type'] == 'hello':
-            if 'Keys' not in message:
-                self.transport.close()
-                return
-            keys = message['Keys']
-            if type(keys) is not list:
-                self.transport.close()
-                return
-            for key in keys:
-                fprint = key['Fingerprint']
-                proof = key['ProofOfWork']
-                if (type(fprint) is not str) or (type(proof) is not str):
-                    continue
-                # Check for correct fingerprint format
-                res = re.match('^[a-fA-F0-9]{16}$', fprint)
-                if res == None or not proof.isdigit():
-                    continue
+        ptype = parser.getType()
+        pdata = parser.getData()
+        if ptype == 'HELLO':
+            for entry in pdata:
+                fprint = entry['Fingerprint']
+                proof = entry['ProofOfWork']
                 if fprint in G_peers:
                     continue
                 # Check for valid proof of work
-                if not isValidProof(fprint, proof):
-                    continue
                 if not addToKeyring(fprint):
                     logging.info('The key {} is rejected because can not' 
-                                 'be found on key server'.format(key))
+                                 'be found on key server'.format(fprint))
                     continue
                 G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
                 logging.info('{} key with {} proof received from {}'.format(
-                    fprint, proof, self.peername[0]
-                            ))
+                    fprint, proof, self.peername[0]))
         elif message['Type'] == 'REQ_LEDGER':
             if 'Nonce' not in message:
                 self.transport.close()
@@ -667,6 +655,7 @@ def main():
             sendHello()
             
             # Ask for ledger from the other nodes 
+            """
             nonce, results = askForLedger()
             logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
@@ -675,6 +664,8 @@ def main():
             consesusLedger = getConsesusValidLedger(nonce, results)
             if consesusLedger != None:
                 G_ledger = consesusLedger
+
+            """
 
 
             logging.info('---MEMORY DATA----')
