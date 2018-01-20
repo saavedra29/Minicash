@@ -5,7 +5,7 @@ import hashlib
 
 def isValidProof(fprint, proof):
     keyhash = hashlib.sha256()
-    fingerproof = fprint + '_' + proof
+    fingerproof = fprint + '_' + str(proof)
     keyhash.update(fingerproof.encode('utf-8'))
     hashResult = keyhash.hexdigest()
     if not hashResult.startswith('00000'):
@@ -43,7 +43,7 @@ def isValidLedgerKey(s):
         proofint = int(proof)
     except ValueError:
         return False
-    if not isValidProof(fprint, proof):
+    if not isValidProof(fprint, proofint):
         return False
     return True
 
