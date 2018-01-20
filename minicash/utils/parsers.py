@@ -94,7 +94,7 @@ class PacketParser:
             self.errorMessage = 'It is not dict'
             return False
         # Check for packet keys
-        if not ['Type', 'Data'] == list(self.packet.keys()):
+        if not set(['Type', 'Data']) == set(list(self.packet.keys())):
             self.errorMessage = 'Wrong keys in the packet'
             return False
 
@@ -143,7 +143,7 @@ class PacketParser:
 
             # RESP_LEDGER
             if self.type == 'RESP_LEDGER':
-                if not ['Ledger', 'Signatures'] == list(self.data.keys()):
+                if not set(['Ledger', 'Signatures']) == set(list(self.data.keys())):
                     self.errorMessage = 'RESP_LEDGER: Wrong Data keys'
                     return False
                 if not isValidLedger(self.data['Ledger']):
@@ -155,7 +155,7 @@ class PacketParser:
                 
             # REQ_INTRO_KEY
             if self.type == 'REQ_INTRO_KEY':
-                if not ['Key', 'Checksum', 'Sig'] == list(self.data.keys()):
+                if not set(['Key', 'Checksum', 'Sig']) == set(list(self.data.keys())):
                     self.errorMessage = 'REQ_INTRO_KEY: Wrong Data keys'
                     return False
                 if not isValidLedgerKey(self.data['Key']):
@@ -170,7 +170,7 @@ class PacketParser:
 
             # RESP_INTRO_KEY and REQ_INTRO_KEY_END
             if self.type == 'RESP_INTRO_KEY' or self.type == 'REQ_INTRO_KEY_END':
-                if not ['Checksum', 'Signatures'] == list(self.data.keys()):
+                if not set(['Checksum', 'Signatures']) == set(list(self.data.keys())):
                     self.errorMessage = self.type + ': Wrong Data keys'
                     return False
                 if not isValidMD5Sum(self.data['Checksum']):
@@ -182,7 +182,7 @@ class PacketParser:
                     
             # REQ_PAY
             if self.type == 'REQ_PAY':
-                if not ['Fromkey', 'Tokey', 'Amount', 'Checksum', 'Sig'] == list(self.data.keys()):
+                if not set(['Fromkey', 'Tokey', 'Amount', 'Checksum', 'Sig']) == set(list(self.data.keys())):
                     self.errorMessage = 'REQ_PAY: Wrong Data keys'
                     return False
                 if not isValidFingerprint(self.data['Fromkey']): 
@@ -206,7 +206,7 @@ class PacketParser:
                     
             # RESP_PAY and REQ_PAY_END
             if self.type == 'RESP_PAY' or self.type == 'REQ_PAY_END':
-                if not ['Checksum', 'Signatures'] == list(self.data.keys()):
+                if not set(['Checksum', 'Signatures']) == set(list(self.data.keys())):
                     self.errorMessage = self.type + ': Wrong Data keys'
                     return False
                 if not isValidMD5Sum(self.data['Checksum']): 

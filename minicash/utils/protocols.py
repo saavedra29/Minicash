@@ -2,13 +2,12 @@ import asyncio
 import json
 
 class LedgerRequestProtocol(asyncio.Protocol):
-    def __init__(self, future, nonce):
+    def __init__(self, future):
         self.future = future
-        self.nonce = nonce
 
     def connection_made(self, transport):
         self.transport = transport
-        messageText = {'Type': 'REQ_LEDGER', 'Nonce': self.nonce}
+        messageText = {'Type': 'REQ_LEDGER', 'Data': {}}
         messageJson = json.dumps(messageText)
         transport.write(messageJson.encode('utf-8'))
 

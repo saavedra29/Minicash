@@ -36,12 +36,12 @@ GPGDIR = ''
 
 # take nonce and ledger and return dictionary with local keys as keys and the signatures of the
 # ledger's md5 as values
-def signLedgerLocalKeys(nonce, ledger):
+def signLedgerLocalKeys(ledger):
     dumpedLedger = json.dumps(ledger, sort_keys=True)
     hashobj = hashlib.md5()
     hashobj.update(dumpedLedger.encode('utf-8'))
     hashedLedger = hashobj.hexdigest()
-    dataToSign = str(nonce) + hashedLedger
+    dataToSign = hashedLedger
     # Sign the checksum with all the local keys
     signaturesDict = {}
     gpg = gnupg.GPG(gnupghome=GPGDIR)
@@ -56,11 +56,10 @@ def signLedgerLocalKeys(nonce, ledger):
     
 
 def askForLedger():
-    nonce = random.randint(0, 1000)
     async def ledgerRequestConnection(ip, loop):
         future = asyncio.Future()
         try:
-            await loop.create_connection(lambda: LedgerRequestProtocol(future, nonce), ip , 2222)
+            await loop.create_connection(lambda: LedgerRequestProtocol(future), ip , 2222)
         except ConnectionRefusedError:
             return
         await future
@@ -78,26 +77,27 @@ def askForLedger():
     rawResults = []
     for res in results:
         rawResults.append(res.result())
-    return nonce, rawResults
+    return rawResults
 
-def getConsesusValidLedger(nonce, ledgerResponces):
+def getConsesusValidLedger(ledgerResponces):
     # Filter out the wrongly formatted responses
     filteredResponses = []
     # Dictionary with dumped ledgers for the keys and lists of really signed keys as the values
     # Example: {'{'aris':23, 'Nick':40}': ['3EE3FD7A50CBD975', '8D972AA78B46CBF7'],..}
     ledgersWithSignedKeys = {}
     for response in ledgerResponces:
-        ledgerCheck = isValidLedgerResponseFormat(response)
-        if not ledgerCheck:
-            filteredResponses.append(response)
-        else:
-            logging.warning('One ledger response aborted for faulty format')
-            logging.warning('Reason: {}'.format(ledgerCheck))
-            logging.warning('--------- FAULTY FORMATTED LEDGER RESPONSE ----------') 
-            logging.warning(response)
+        # Check for the response format
+        parser = PacketParser(response)
+        if not parser.isPacketValid():
+            logging.warning('Invalid packet => {}'.format(parser.errorMessage))
+            continue
+        if not parser.type == 'RESP_LEDGER':
+            logging.warning('Invalid packet, RESP_LEDGER expected')
+            continue
+        filteredResponses.append(response)
     for response in filteredResponses:
-        ledger = json.dumps(response['Ledger'], sort_keys=True)
-        signedKeys = getKeysThatSignedLedger(nonce, response)
+        ledger = json.dumps(response['Data']['Ledger'], sort_keys=True)
+        signedKeys = getKeysThatSignedLedger(response)
         logging.info('-------- Filtered ledger and keys that signed it -------')
         logging.info('Ledger: {}'.format(ledger))
         logging.info('Keys: {}'.format(signedKeys))
@@ -124,18 +124,17 @@ def getConsesusValidLedger(nonce, ledgerResponces):
     return None
 
 # Takes the response and nonce and return a list with the keys that really signed the ledger
-def getKeysThatSignedLedger(nonce, response):
+def getKeysThatSignedLedger(response):
     gpg = gnupg.GPG(gnupghome=GPGDIR)
-    nonce = str(nonce)
-    ledger = response['Ledger']
+    ledger = response['Data']['Ledger']
     ledger = json.dumps(ledger, sort_keys=True)
     hashobj = hashlib.md5()
     hashobj.update(ledger.encode('utf-8'))
     hashedLedger = hashobj.hexdigest()
-    dataToCheck= str(nonce) + hashedLedger
+    dataToCheck= hashedLedger
     
     validKeys = []
-    keysSignaturesDict = response['Signatures']
+    keysSignaturesDict = response['Data']['Signatures']
     # Loop in signatures
     for fprint in keysSignaturesDict:
         for key in gpg.list_keys():
@@ -420,18 +419,11 @@ class SynchronizerProtocol(asyncio.Protocol):
                 G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
                 logging.info('{} key with {} proof received from {}'.format(
                     fprint, proof, self.peername[0]))
-        elif message['Type'] == 'REQ_LEDGER':
-            if 'Nonce' not in message:
-                self.transport.close()
-                return
-            if not isinstance(message['Nonce'], int):
-                self.transport.close()
-                return
-                
+        elif ptype == 'REQ_LEDGER':
             # Get dumped ledger's md5
-            signaturesDict = signLedgerLocalKeys(message['Nonce'], G_ledger)
-            ledgerResponse = {'Type': 'RESP_LEDGER', 'Ledger': G_ledger,
-                              'Signatures': signaturesDict}
+            signaturesDict = signLedgerLocalKeys(G_ledger)
+            ledgerResponse = {'Type': 'RESP_LEDGER', 'Data':{'Ledger': G_ledger,
+                              'Signatures': signaturesDict}}
             ledgerResponse = json.dumps(ledgerResponse, sort_keys=True)
             self.transport.write(ledgerResponse.encode('utf-8'))
 
@@ -655,17 +647,15 @@ def main():
             sendHello()
             
             # Ask for ledger from the other nodes 
-            """
-            nonce, results = askForLedger()
+            results = askForLedger()
             logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
                 logging.info('Ledger uninspected reponse received from keys {}'.format(
-                                response['Signatures'].keys()))
-            consesusLedger = getConsesusValidLedger(nonce, results)
+                                response['Data']['Signatures'].keys()))
+            consesusLedger = getConsesusValidLedger(results)
             if consesusLedger != None:
                 G_ledger = consesusLedger
 
-            """
 
 
             logging.info('---MEMORY DATA----')
