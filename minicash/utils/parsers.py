@@ -1,12 +1,229 @@
 import re
-import json
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-from utils.checksum import isValidProof
+import hashlib
+
+def isValidProof(fprint, proof):
+    keyhash = hashlib.sha256()
+    fingerproof = fprint + '_' + proof
+    keyhash.update(fingerproof.encode('utf-8'))
+    hashResult = keyhash.hexdigest()
+    if not hashResult.startswith('00000'):
+        return False
+    return True
+
+def isValidSignaturesDict(d):
+    for key, sig in d.items():
+        if type(key) is not str or type(sig) is not str:
+            return False
+        if not isValidFingerprint(key):
+            return False
+    return True
+    
+def isValidFingerprint(s):
+    res = re.match('^[a-fA-F0-9]{16}$', s)
+    if res == None:
+        return False
+    return True
+
+def isValidMD5Sum(s):
+    res = re.match('^[a-f0-9]{32}$', s)
+    if res == None:
+        return False
+    return True
+
+def isValidLedgerKey(s):
+    fprint = s[:16]
+    if not isValidFingerprint(fprint):
+        return False
+    if s[16] != '_':
+        return False
+    proof = s[17:]
+    try:
+        proofint = int(proof)
+    except ValueError:
+        return False
+    if not isValidProof(fprint, proof):
+        return False
+    return True
 
 # Checks for the ledger's format since it's of dict type
 def isValidLedger(ledger):
+    if type(ledger) is not dict:
+        return False
+    for key, value in ledger.items():
+        if type(key) is not str:
+            return False
+        if type(value) is not int:
+            return False
+        if not isValidLedgerKey(key):
+            return False
+        # Check if balance is 0 or above
+        if value < 0:
+            return False
+        # Check if the sum of all balances is 100000000 times the number of keys
+        if len(ledger) != 0:
+            numOfKeys = len(ledger)
+            balancesSum = 0
+            for balance in ledger.values():
+                balancesSum += balance
+            if balancesSum / numOfKeys != 100000000:
+                return False
+    return True
+
+
+class PacketParser:
+    def __init__(self, packet = None):
+        self.packet = packet
+        self.type = None
+        self.data = None
+        self.errorMessage = None
+    
+    def setPacket(self, packet):
+        self.packet = packet
+
+    def getData(self):
+        return self.data
+
+    def getType(self):
+        return self.type
+
+    def isPacketValid(self):
+        # Check for dict type
+        if type(self.packet) is not dict:
+            self.errorMessage = 'It is not dict'
+            return False
+        # Check for packet keys
+        if not ['Type', 'Data'] == list(self.packet.keys()):
+            self.errorMessage = 'Wrong keys in the packet'
+            return False
+
+        # Check for correct types
+        validTypes = ['HELLO', 'REQ_LEDGER', 'RESP_LEDGER', 'REQ_INTRO_KEY',
+                      'RESP_INTRO_KEY', 'REQ_INTRO_KEY_END', 'REQ_PAY',
+                      'RESP_PAY', 'REQ_PAY_END']
+        if self.packet['Type'] not in validTypes:
+            self.errorMessage = 'Invalid type'
+            return False
+        
+        self.type = self.packet['Type']
+        self.data = self.packet['Data']
+        # Check for each type exclusively
+        # First check if Data is list because only type HELLO has Data of type list
+        if type(self.data) is list:
+            # HELLO
+            if self.type == 'HELLO':
+                for val in self.data:
+                    if type(val) is not dict:
+                        self.errorMessage = 'HELLO: element in Data list is not dict'
+                        return False
+                    if not ['Fingerprint', 'ProofOfWork'] == list(val.keys()):
+                        self.errorMessage = 'HELLO: Wrong Data keys'
+                        return False
+                    if type(val['Fingerprint']) is not str:
+                        self.errorMessage = 'HELLO: Fingerprint value is not a string'
+                        return False
+                    if not isValidFingerprint(val['Fingerprint']):
+                        self.errorMessage = 'HELLO: Fingerprint value has not valid format'
+                        return False
+                    if type(val['ProofOfWork']) is not int:
+                        self.errorMessage = 'HELLO: ProofOfWork value is not int'
+                        return False
+                    if val['ProofOfWork'] < 0:
+                        self.errorMessage = 'HELLO: ProofOfWork is negative'
+                        return False
+        
+        elif type(self.data) is dict:     
+            
+            # REQ_LEDGER
+            if self.type == 'REQ_LEDGER':
+                if len(self.data) != 0:
+                    self.errorMessage = 'REQ_LEDGER: Data is not empty'
+                    return False
+
+            # RESP_LEDGER
+            if self.type == 'RESP_LEDGER':
+                if not ['Ledger', 'Signatures'] == list(self.data.keys()):
+                    self.errorMessage = 'RESP_LEDGER: Wrong Data keys'
+                    return False
+                if not isValidLedger(self.data['Ledger']):
+                    self.errorMessage = 'RESP_LEDGER: Invalid ledger'
+                    return False
+                if not isValidSignaturesDict(self.data['Signatures']):
+                    self.errorMessage = 'RESP_LEDGER: fprints-signatures dict invalid'
+                    return False
+                
+            # REQ_INTRO_KEY
+            if self.type == 'REQ_INTRO_KEY':
+                if not ['Key', 'Checksum', 'Sig'] == list(self.data.keys()):
+                    self.errorMessage = 'REQ_INTRO_KEY: Wrong Data keys'
+                    return False
+                if not isValidLedgerKey(self.data['Key']):
+                    self.errorMessage = 'REQ_INTRO_KEY: Wrong ledger key'
+                    return False
+                if not isValidMD5Sum(self.data['Checksum']):
+                    self.errorMessage = 'REQ_INTRO_KEY: Wrong md5sum format'
+                    return False
+                if type(self.data['Sig']) is not str:
+                    self.errorMessage = 'REQ_INTRO_KEY: The signature is not string'
+                    return False
+
+            # RESP_INTRO_KEY and REQ_INTRO_KEY_END
+            if self.type == 'RESP_INTRO_KEY' or self.type == 'REQ_INTRO_KEY_END':
+                if not ['Checksum', 'Signatures'] == list(self.data.keys()):
+                    self.errorMessage = self.type + ': Wrong Data keys'
+                    return False
+                if not isValidMD5Sum(self.data['Checksum']):
+                    self.errorMessage = self.type + ': Wrong md5sum format'
+                    return False
+                if not isValidSignaturesDict(self.data['Signatures']):
+                    self.errorMessage = self.type + ': fprints-signatures dict invalid'
+                    return False
+                    
+            # REQ_PAY
+            if self.type == 'REQ_PAY':
+                if not ['Fromkey', 'Tokey', 'Amount', 'Checksum', 'Sig'] == list(self.data.keys()):
+                    self.errorMessage = 'REQ_PAY: Wrong Data keys'
+                    return False
+                if not isValidFingerprint(self.data['Fromkey']): 
+                    self.errorMessage = 'REQ_PAY: Invalid Fromkey value'
+                    return False
+                if not isValidFingerprint(self.data['Tokey']): 
+                    self.errorMessage = 'REQ_PAY: Invalid Tokey value'
+                    return False
+                if not type(self.data['Amount']) is int:
+                    self.errorMessage = 'REQ_PAY: Amount is not integer'
+                    return False
+                if self.data['Amount'] < 1:
+                    self.errorMessage = 'REQ_PAY: Amount is not 1 or larger'
+                    return False
+                if not isValidMD5Sum(self.data['Checksum']):
+                    self.errorMessage = 'REQ_PAY: Invalid checksum value'
+                    return False
+                if not type(self.data['Sig'] is str):
+                    self.errorMessage = 'REQ_PAY: Signature is not string'
+                    return False
+                    
+            # RESP_PAY and REQ_PAY_END
+            if self.type == 'RESP_PAY' or self.type == 'REQ_PAY_END':
+                if not ['Checksum', 'Signatures'] == list(self.data.keys()):
+                    self.errorMessage = self.type + ': Wrong Data keys'
+                    return False
+                if not isValidMD5Sum(self.data['Checksum']): 
+                    self.errorMessage = self.type + ': Invalid checksum value'
+                    return False
+                if not isValidSignaturesDict(self.data['Signatures']):
+                    self.errorMessage = self.type + ': fprints-signatures dict invalid'
+                    return False
+        else:
+            return False
+        return True
+
+
+# DEPRECATED CODE
+
+# Checks for the ledger's format since it's of dict type
+def isValidLedgerOld(ledger):
     if type(ledger) is not dict:
         return '@Ledger not valid: It is not dict'
     # check if keys are strings and values are integers
@@ -17,23 +234,8 @@ def isValidLedger(ledger):
         if type(balance) is not int:
             return '@Ledger not valid: balance is not integer'
     for key, value in ledger.items():
-        # Check if key first 16 characters are valid fingerprint
-        fprint = key[:16]
-        res = re.match('^[a-fA-F0-9]{16}$', fprint)
-        if res == None:
-            return '@Ledger not valid: invalid key fingerprint {}'.format(fprint)
-        # Check if 17th character is _
-        if key[16] != '_':
-            return '@Ledger not valid: wrong separating character'
-        # Check if [17:] is representing integer
-        proof = key[17:]
-        try:
-            proofint = int(proof)
-        except ValueError:
-            return '@Ledger not valid: proof is not an integer'
-        # Check proof with proof of work checker for the key validity
-        if not isValidProof(fprint, proof):
-            return '@Ledger not valid: wrong proof of work'
+        if not isValidLedgerKey(key):
+            return '@Ledger not valid: invalid ledger key'
         # Check if balance is 0 or above
         if value < 0:
             return '@Ledger not valid: balance below 0'
@@ -46,7 +248,6 @@ def isValidLedger(ledger):
             return '@Ledger not valid: not balanced balances'
     return False
 
-
 # Checks if the ledger response is formated correctly. This is a dict
 def isValidLedgerResponseFormat(res):
     if type(res) is not dict:
@@ -55,7 +256,7 @@ def isValidLedgerResponseFormat(res):
         return '@Ledger response wrong format: Wrong key'
     if res['Type'] != 'RESP_LEDGER':
         return '@Ledger response wrong format: Type is not RESP_LEDGER'
-    fromLedger = isValidLedger(res['Ledger'])
+    fromLedger = isValidLedgerOld(res['Ledger'])
     if fromLedger:
         return '@Ledger response wrong format: The ledger value is not valid' + '==>' + fromLedger
     if len(res) != 3:
@@ -72,35 +273,3 @@ def isValidLedgerResponseFormat(res):
             return '@Ledger response wrong format: Wrong fingerprint format'
     return False
 
-
-class PacketParser:
-    def __init__(self, packet):
-        self.packet = packet
-        self.message = None
-        self.type = None
-        self.data = None
-        self.result = None
-    
-    def isPacketValid(self):
-        # Check of valid json data
-        try:
-            self.message = json.loads(self.packet)
-        except (json.JSONDecodeError, TypeError):
-            return False
-        
-        return True
-        # Check for type and data keys
-        
-    
-    def getData(self):
-        pass
-
-    def getType(self):
-        pass
-
-    
-
-
-
-
-    
