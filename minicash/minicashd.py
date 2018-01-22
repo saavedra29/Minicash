@@ -21,6 +21,7 @@ from utils.checksum import isValidProof
 from utils.checksum import getmd5 
 from utils.parsers import isValidLedgerResponseFormat
 from utils.parsers import PacketParser
+from utils.gpg import signWithKeys
 
 # Global variables
 noPid = False
@@ -44,22 +45,6 @@ def getRemoteIps():
 
 # take nonce and ledger and return dictionary with local keys as keys and the signatures of the
 # ledger's md5 as values
-def signLedgerLocalKeys(ledger):
-    dumpedLedger = json.dumps(ledger, sort_keys=True)
-    dataToSign = getmd5(dumpedLedger)
-    # Sign the checksum with all the local keys
-    signaturesDict = {}
-    gpg = gnupg.GPG(gnupghome=GPGDIR)
-    for searchingKey in G_privateKeys.keys():
-        for listedKey in gpg.list_keys(True):
-            listedKey = listedKey['keyid']
-            if listedKey == searchingKey:
-                signedData = gpg.sign(dataToSign, keyid=searchingKey,
-                    passphrase='mylongminicashsillypassphrase')
-                signaturesDict[searchingKey] = str(signedData)
-    return signaturesDict
-    
-
 def getConsesusValidLedger(ledgerResponces):
     # Filter out the wrongly formatted responses
     filteredResponses = []
@@ -110,7 +95,7 @@ def getKeysThatSignedLedger(response):
     gpg = gnupg.GPG(gnupghome=GPGDIR)
     ledger = response['Data']['Ledger']
     ledger = json.dumps(ledger, sort_keys=True)
-    dataToCheck= getmd5(ledger)
+    dataToCheck = getmd5(ledger)
     
     validKeys = []
     keysSignaturesDict = response['Data']['Signatures']
@@ -139,6 +124,7 @@ def getKeysThatSignedLedger(response):
         result =  extractFromSignature.group(0)
         if result != dataToCheck:
             logging.info('Signed data is not the expected')
+            logging.info('Whole signature: {}'.format(signature))
             logging.info('Result: {}'.format(result))
             logging.info('dataToCheck: {}'.format(dataToCheck))
             continue
@@ -397,7 +383,9 @@ class SynchronizerProtocol(asyncio.Protocol):
                     fprint, proof, self.peername[0]))
         elif ptype == 'REQ_LEDGER':
             # Get dumped ledger's md5
-            signaturesDict = signLedgerLocalKeys(G_ledger)
+            dumpedLedger = json.dumps(G_ledger, sort_keys=True)
+            signaturesDict = signWithKeys(GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),\
+                                dumpedLedger, 'mylongminicashsillypassphrase')
             ledgerResponse = {'Type': 'RESP_LEDGER', 'Data':{'Ledger': G_ledger,
                               'Signatures': signaturesDict}}
             ledgerResponse = json.dumps(ledgerResponse, sort_keys=True)
