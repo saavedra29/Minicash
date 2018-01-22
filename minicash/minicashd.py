@@ -12,7 +12,8 @@ import hashlib
 import asyncio
 import random
 import time
-from utils.protocols import LedgerRequestProtocol
+from utils.protocols import sendToMany
+from utils.protocols import sendReceiveToMany
 from jsonrpc import JSONRPCResponseManager, dispatcher
 from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
@@ -34,6 +35,13 @@ MINICASHDIR = ''
 GPGDIR = ''
 
 
+def getRemoteIps():
+    remoteips = []
+    for proofIp in G_peers.values():
+        remoteips.append(proofIp['Ip'])
+    return set(remoteips)
+    
+
 # take nonce and ledger and return dictionary with local keys as keys and the signatures of the
 # ledger's md5 as values
 def signLedgerLocalKeys(ledger):
@@ -54,30 +62,6 @@ def signLedgerLocalKeys(ledger):
                 signaturesDict[searchingKey] = str(signedData)
     return signaturesDict
     
-
-def askForLedger():
-    async def ledgerRequestConnection(ip, loop):
-        future = asyncio.Future()
-        try:
-            await loop.create_connection(lambda: LedgerRequestProtocol(future), ip , 2222)
-        except ConnectionRefusedError:
-            return
-        await future
-        return future
-
-    loop = asyncio.get_event_loop()
-    tasks = []
-    for ip in G_remoteIps:
-        task = asyncio.ensure_future(ledgerRequestConnection(ip, loop))
-        tasks.append(task)
-    results = loop.run_until_complete(asyncio.gather(*tasks))   
-    loop.close()
-    while None in results:
-        results.remove(None)
-    rawResults = []
-    for res in results:
-        rawResults.append(res.result())
-    return rawResults
 
 def getConsesusValidLedger(ledgerResponces):
     # Filter out the wrongly formatted responses
@@ -170,11 +154,6 @@ def getKeysThatSignedLedger(response):
 
 def sendHello(fprint=None, proof=None):
     # Send hello to the other peers
-    remoteips = []
-    for proofIp in G_peers.values():
-        remoteips.append(proofIp['Ip'])
-    global G_remoteIps
-    G_remoteIps = set(remoteips)
     hello = {'Type': 'HELLO', 'Data': []}
     if fprint == None:
         for key in G_privateKeys.keys():
@@ -182,8 +161,8 @@ def sendHello(fprint=None, proof=None):
     else:
         hello['Data'].append({'Fingerprint': fprint, 'ProofOfWork': proof})
     hello = json.dumps(hello)
-    simpleSend(hello, G_remoteIps, 2222, timeout=1)
-    for ip in G_remoteIps:
+    simpleSend(hello, getRemoteIps(), 2222, timeout=1)
+    for ip in getRemoteIps():
         logging.info('Hello sent to {}'.format(ip))
 
 
@@ -331,12 +310,6 @@ def addKey(kwargs):
     del(G_privateKeys[fingerprint])
     return {'Fail': {'Reason': 'Problem uploading key to server'}}
     
-    # ADD KEY TO LEDGER
-    # Make new ledger copy with the key
-    # Send it for vote
-    #   If not voted exit with fail
-    # Refresh the ledger
-
 
 def listPeers(kwargs):
     return {'Success': G_peers}
@@ -648,7 +621,7 @@ def main():
             sendHello()
             
             # Ask for ledger from the other nodes 
-            results = askForLedger()
+            results = sendReceiveToMany({'Type':'REQ_LEDGER', 'Data': {}}, getRemoteIps())
             logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
                 logging.info('Ledger uninspected reponse received from keys {}'.format(
