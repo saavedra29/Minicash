@@ -8,7 +8,6 @@ import re
 import argparse
 import json
 import gnupg
-import hashlib
 import asyncio
 import random
 import time
@@ -19,6 +18,7 @@ from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
 from utils.client import simpleSend
 from utils.checksum import isValidProof
+from utils.checksum import getmd5 
 from utils.parsers import isValidLedgerResponseFormat
 from utils.parsers import PacketParser
 
@@ -46,10 +46,7 @@ def getRemoteIps():
 # ledger's md5 as values
 def signLedgerLocalKeys(ledger):
     dumpedLedger = json.dumps(ledger, sort_keys=True)
-    hashobj = hashlib.md5()
-    hashobj.update(dumpedLedger.encode('utf-8'))
-    hashedLedger = hashobj.hexdigest()
-    dataToSign = hashedLedger
+    dataToSign = getmd5(dumpedLedger)
     # Sign the checksum with all the local keys
     signaturesDict = {}
     gpg = gnupg.GPG(gnupghome=GPGDIR)
@@ -113,10 +110,7 @@ def getKeysThatSignedLedger(response):
     gpg = gnupg.GPG(gnupghome=GPGDIR)
     ledger = response['Data']['Ledger']
     ledger = json.dumps(ledger, sort_keys=True)
-    hashobj = hashlib.md5()
-    hashobj.update(ledger.encode('utf-8'))
-    hashedLedger = hashobj.hexdigest()
-    dataToCheck= hashedLedger
+    dataToCheck= getmd5(ledger)
     
     validKeys = []
     keysSignaturesDict = response['Data']['Signatures']
@@ -336,9 +330,17 @@ def interruptHandler(signum, frame):
 
 
 def introduceKeyToLedger(kwargs):
-    return {'Success': 'Key to add: {}'.format(kwargs['keytoadd'])}
-        
-        
+    return kwargs
+    """
+    key = kwargs['keytoadd']
+    if key not in G_privateKeys:
+        return {'Fail': {'Reason': 'Invalid key'}}
+    keyproof = key + _ + str(G_privateKeys[key]) 
+    newLedger = G_ledger.copy()
+    newLedger[keyproof] = 100000000
+    chksum = getmd5(json.dumps(newLedger, sort_keys=True))
+
+    """
 
 
 def stop():

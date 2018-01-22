@@ -8,3 +8,9 @@ def isValidProof(fprint, proof):
     if not hashResult.startswith('00000'):
         return False
     return True
+
+
+def getmd5(data):
+    datahash = hashlib.md5()
+    datahash.update(data.encode('utf-8'))
+    return datahash.hexdigest()
