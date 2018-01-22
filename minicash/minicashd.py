@@ -63,7 +63,7 @@ def getConsesusValidLedger(ledgerResponces):
         filteredResponses.append(response)
     for response in filteredResponses:
         ledger = json.dumps(response['Data']['Ledger'], sort_keys=True)
-        signedKeys = getKeysThatSignedLedger(response)
+        signedKeys, _ = getKeysThatSignedLedger(response)
         logging.info('-------- Filtered ledger and keys that signed it -------')
         logging.info('Ledger: {}'.format(ledger))
         logging.info('Keys: {}'.format(signedKeys))
@@ -284,8 +284,6 @@ def interruptHandler(signum, frame):
 
 
 def introduceKeyToLedger(kwargs):
-    return kwargs
-    """
     key = kwargs['keytoadd']
     if key not in G_privateKeys:
         return {'Fail': {'Reason': 'Invalid key'}}
@@ -296,11 +294,44 @@ def introduceKeyToLedger(kwargs):
     signature = signWithKeys(GPGDIR, G_privateKeys.keys(), [keyproof], chksum, 'mylongminicashsillypassphrase')
     message = {'Type':'REQ_INTRO_KEY', 'Data':{'key':keyproof, 'Checksum':chksum, 'Sig':signature}}
     results = sendReceiveToMany(message, getRemoteIps())
-    # CHECK FOR CONSESUS
-    # Get checksum of the message
+    # collect all the valid data
+    logging.info('Checking incoming RESP_INTRO_KEY data..')
     messageHash = getmd5(json.dumps(message))
-    """
-
+    totalKeysSigs = {}
+    for response in results:
+        parser = PacketParser(response)
+        if not parser.isPacketValid():
+            logging.warning('Invalid incoming data: {}'.format(parser.errorMessage))
+            continue
+        if not parser.type == 'RESP_INTRO_KEY':
+            logging.warning('Invalid incoming data type')
+            continue
+        data = parser.data
+        if messageHash != data['Checksum']:
+            logging.warning('Invalid checksum in data')
+            continue
+        _, keysSigsToCollect = getKeysThatSignedData(data['Signatures'])
+        totalKeysSigs.update(keysSigsToCollect)
+    # check for the consesus
+    numberOfKeysThatVote = len(G_peers) 
+    positiveVotes = len(totalKeysSigs)
+    if not positiveVotes > 67/100 * numberOfKeysThatVote:
+        logging.info('-------- NEW KEY FAILED TO ENTER THE LEDGER ----------')
+        logging.info('Key: {}'.format(key))
+        logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
+                        positiveVotes, numberOfKeysThatVote))
+        return {'Fail': {'Reason':'Not enough votes'}}
+        
+    logging.info('-------- NEW KEY INTRODUCED TO THE LEDGER ----------')
+    logging.info('Key: {}'.format(key))
+    logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
+                    positiveVotes, numberOfKeysThatVote))
+    logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
+    # Send the 'REQ_INTRO_KEY_END' to all the nodes
+    endMessage = {'Type':'RESP_INTRO_KEY_END', 'Data':{'Checksum':messageHash,
+        'Signatures':totalKeysSigs}}
+    sendToMany(endMessage, getRemoteIps())
+    
 
 def stop():
     # Save memory data to filesystem
