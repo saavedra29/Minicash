@@ -22,6 +22,7 @@ from utils.checksum import getmd5
 from utils.parsers import isValidLedgerResponseFormat
 from utils.parsers import PacketParser
 from utils.gpg import signWithKeys
+from utils.gpg import getKeysThatSignedData
 
 # Global variables
 noPid = False
@@ -30,7 +31,6 @@ G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
 G_ledger = {}
-G_remoteIps = set()
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
@@ -92,44 +92,12 @@ def getConsesusValidLedger(ledgerResponces):
 
 # Takes the response and nonce and return a list with the keys that really signed the ledger
 def getKeysThatSignedLedger(response):
-    gpg = gnupg.GPG(gnupghome=GPGDIR)
     ledger = response['Data']['Ledger']
     ledger = json.dumps(ledger, sort_keys=True)
     dataToCheck = getmd5(ledger)
-    
-    validKeys = []
     keysSignaturesDict = response['Data']['Signatures']
     # Loop in signatures
-    for fprint in keysSignaturesDict:
-        for key in gpg.list_keys():
-            if key['keyid'] == fprint:
-                logging.info('Checking key {}..'.format(fprint))
-                foundKey = True
-                break
-        if not 'foundKey' in locals():
-            continue
-        signature = keysSignaturesDict[fprint]
-        verification = gpg.verify(signature)
-        if verification.key_id != fprint:
-            logging.info('Wrong verification keyid')
-            continue
-        if verification.status != 'signature valid':
-            logging.info('Not valid signature')
-            continue
-        messagePattern = re.compile('(?<=\n\n)\w+')
-        extractFromSignature = messagePattern.search(signature)
-        if extractFromSignature is None:
-            logging.info('Wrong signature format')
-            continue
-        result =  extractFromSignature.group(0)
-        if result != dataToCheck:
-            logging.info('Signed data is not the expected')
-            logging.info('Whole signature: {}'.format(signature))
-            logging.info('Result: {}'.format(result))
-            logging.info('dataToCheck: {}'.format(dataToCheck))
-            continue
-        validKeys.append(fprint)
-    return validKeys
+    return getKeysThatSignedData(logging, GPGDIR, keysSignaturesDict, dataToCheck)
 
 
 def sendHello(fprint=None, proof=None):
@@ -321,11 +289,16 @@ def introduceKeyToLedger(kwargs):
     key = kwargs['keytoadd']
     if key not in G_privateKeys:
         return {'Fail': {'Reason': 'Invalid key'}}
-    keyproof = key + _ + str(G_privateKeys[key]) 
+    keyproof = key + '_' + str(G_privateKeys[key]) 
     newLedger = G_ledger.copy()
     newLedger[keyproof] = 100000000
     chksum = getmd5(json.dumps(newLedger, sort_keys=True))
-
+    signature = signWithKeys(GPGDIR, G_privateKeys.keys(), [keyproof], chksum, 'mylongminicashsillypassphrase')
+    message = {'Type':'REQ_INTRO_KEY', 'Data':{'key':keyproof, 'Checksum':chksum, 'Sig':signature}}
+    results = sendReceiveToMany(message, getRemoteIps())
+    # CHECK FOR CONSESUS
+    # Get checksum of the message
+    messageHash = getmd5(json.dumps(message))
     """
 
 
