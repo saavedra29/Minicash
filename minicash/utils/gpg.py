@@ -30,8 +30,12 @@ def signWithKeys(gpgdir, privateKeys, keysToUse, data, password):
     return signaturesDict
     
 
+# Returns tuple
+# First element is a list with the valid signatures
+# Second element is a dict with valid keys:signatures
 def getKeysThatSignedData(logging, gpgdir, keySigs, data):
     validKeys = []
+    validKeysSigs = {}
     gpg = gnupg.GPG(gnupghome=gpgdir)
     for fprint in keySigs:
         for key in gpg.list_keys():
@@ -62,7 +66,8 @@ def getKeysThatSignedData(logging, gpgdir, keySigs, data):
             logging.info('dataToCheck: {}'.format(data))
             continue
         validKeys.append(fprint)
-    return validKeys
+        validKeysSigs[fprint] = signature
+    return validKeys, validKeysSigs
 
 
 
