@@ -8,31 +8,37 @@ def getmd5(data):
     datahash.update(data.encode('utf-8'))
     return datahash.hexdigest()
 
-
+# Arguments
+# 1: Path of GPG folder to use
+# 2: The keys stored in the private_keys.json file
+# 3: The keys we want to sign with
+# 4: The data to sign
+# 5: The password
 def signWithKeys(gpgdir, privateKeys, keysToUse, data, password):
     if type(data) is dict:
-        hashedData = getmd5(json.dumps(data, sort_keys=True))
-    else:
-        hashedData = getmd5(data)
+        data = json.dumps(data, sort_keys=True)
     gpg = gnupg.GPG(gnupghome=gpgdir)
     signaturesDict = {}
     existingKeys = []
     # Check for existing keys
     for searchingKey in keysToUse:
-        for listedKey in gpg.list_keys(True):
-            if searchingKey == listedKey['keyid']:
-                existingKeys.append(searchingKey)
+        if searchingKey in privateKeys:
+            for listedKey in gpg.list_keys(True):
+                if searchingKey == listedKey['keyid']:
+                    existingKeys.append(searchingKey)
 
     for key in existingKeys:
-        signedData = gpg.sign(hashedData, keyid=key,
+        signedData = gpg.sign(data, keyid=key,
                     passphrase=password)
         signaturesDict[key] = str(signedData)
     return signaturesDict
     
 
 # Returns tuple
-# First element is a list with the valid signatures
+# First element is a list with the valid keys
 # Second element is a dict with valid keys:signatures
+# Arguments:
+# keySigs: a dictionary with keys as keys and signatures as values
 def getKeysThatSignedData(logging, gpgdir, keySigs, data):
     validKeys = []
     validKeysSigs = {}

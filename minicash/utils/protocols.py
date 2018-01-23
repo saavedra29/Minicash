@@ -25,6 +25,9 @@ class RequestResponseProtocol(asyncio.Protocol):
         response = json.loads(data.decode('utf-8'))
         self.transport.close()
         self.future.set_result(response)
+    
+    def connection_lost(self, exc):
+        self.transport.close()
 
     
 def sendReceiveToMany(message, ips):
@@ -37,7 +40,8 @@ def sendReceiveToMany(message, ips):
         await future
         return future
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     tasks = []
     for ip in ips:
         task = asyncio.ensure_future(connect(ip, loop))
@@ -53,7 +57,8 @@ def sendReceiveToMany(message, ips):
 
 
 def sendToMany(message, ips):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     tasks = []
     for ip in ips:
         task = loop.create_connection(lambda: RequestProtocol(message), ip , 2222) 
