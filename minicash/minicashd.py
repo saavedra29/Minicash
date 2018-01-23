@@ -18,7 +18,7 @@ from daemon import DaemonContext
 from daemon.daemon import DaemonOSEnvironmentError
 from utils.client import simpleSend
 from utils.checksum import isValidProof
-from utils.checksum import getmd5 
+from utils.checksum import getmd5
 from utils.parsers import isValidLedgerResponseFormat
 from utils.parsers import PacketParser
 from utils.gpg import signWithKeys
@@ -31,7 +31,7 @@ G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
 G_ledger = {}
-G_keyIntro = {'Key':None, 'LedgerChecksum':None, 'MessageHash': None}
+G_keyIntro = {'Key': None, 'LedgerChecksum': None, 'MessageHash': None}
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
@@ -60,7 +60,7 @@ class MyCliHandler(socketserver.BaseRequestHandler):
 
 
 # Server handler
-class SynchronizerProtocol(asyncio.Protocol):
+class MainServerProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self.peername = transport.get_extra_info('peername')
         logging.info('Connection received from {}'.format(self.peername))
@@ -73,7 +73,7 @@ class SynchronizerProtocol(asyncio.Protocol):
         except json.JSONDecodeError as e:
             self.transport.close()
             return
-        
+
         parser = PacketParser(message)
         if not parser.isPacketValid():
             logging.warning('Invalid incoming data => {}'.format(parser.errorMessage))
@@ -89,31 +89,31 @@ class SynchronizerProtocol(asyncio.Protocol):
                     continue
                 # Check for valid proof of work
                 if not addToKeyring(fprint):
-                    logging.info('The key {} is rejected because can not' 
+                    logging.info('The key {} is rejected because can not'
                                  'be found on key server'.format(fprint))
                     continue
-                G_peers[fprint] = {'Proof':proof, 'Ip':self.peername[0]}
+                G_peers[fprint] = {'Proof': proof, 'Ip': self.peername[0]}
                 logging.info('{} key with {} proof received from {}'.format(
                     fprint, proof, self.peername[0]))
         elif ptype == 'REQ_LEDGER':
             # Get dumped ledger's md5
             dumpedLedger = json.dumps(G_ledger, sort_keys=True)
-            signaturesDict = signWithKeys(GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),\
-                                getmd5(dumpedLedger), 'mylongminicashsillypassphrase')
-            ledgerResponse = {'Type': 'RESP_LEDGER', 'Data':{'Ledger': G_ledger,
-                              'Signatures': signaturesDict}}
+            signaturesDict = signWithKeys(GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),
+                                          getmd5(dumpedLedger), 'mylongminicashsillypassphrase')
+            ledgerResponse = {'Type': 'RESP_LEDGER', 'Data': {'Ledger': G_ledger,
+                                                              'Signatures': signaturesDict}}
             ledgerResponse = json.dumps(ledgerResponse, sort_keys=True)
             self.transport.write(ledgerResponse.encode('utf-8'))
-        
+
         elif ptype == 'REQ_INTRO_KEY':
             hashedReceivedMessage = getmd5(data.decode('utf-8'))
-            reqIntroKeyResponse = {'Type':'RESP_INTRO_KEY', 'Data':{'Checksum':hashedReceivedMessage,
-                'Signatures':{}}}
+            reqIntroKeyResponse = {'Type': 'RESP_INTRO_KEY', 'Data': {
+                'Checksum': hashedReceivedMessage, 'Signatures': {}}}
             fprint = pdata['Key'][:16]
             # TODO maybe not logical
-            if not fprint in G_peers:
+            if fprint not in G_peers:
                 logging.warning('The key {} can\'t be added to the ledger because is not in the'
-                             ' G_peers'.format(fprint))
+                                ' G_peers'.format(fprint))
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
                 return
             newLedger = G_ledger.copy()
@@ -123,19 +123,20 @@ class SynchronizerProtocol(asyncio.Protocol):
                 logging.warning('The checksums don\'t fit')
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
                 return
-            validKeys, _ = getKeysThatSignedData(logging, GPGDIR, {fprint:pdata['Sig']},pdata['Checksum'])
-            if not fprint in validKeys:
+            validKeys, _ = getKeysThatSignedData(
+                logging, GPGDIR, {fprint: pdata['Sig']}, pdata['Checksum'])
+            if fprint not in validKeys:
                 logging.warning('Wrong signature')
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
                 return
             signaturesDict = signWithKeys(GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),
-                                             hashedReceivedMessage, 'mylongminicashsillypassphrase')           
+                                          hashedReceivedMessage, 'mylongminicashsillypassphrase')
             reqIntroKeyResponse['Data']['Signatures'] = signaturesDict
             G_keyIntro['Key'] = pdata['Key']
             G_keyIntro['LedgerChecksum'] = pdata['Checksum']
             G_keyIntro['MessageHash'] = hashedReceivedMessage
             self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
-        
+
         elif ptype == 'REQ_INTRO_KEY_END':
             logging.info('------------- G_keyIntro ------------')
             logging.info('key: {}'.format(G_keyIntro['Key']))
@@ -150,25 +151,28 @@ class SynchronizerProtocol(asyncio.Protocol):
             hashedLedger = getmd5(json.dumps(tmpLedger, sort_keys=True))
             logging.info('hashedLedger: {}'.format(hashedLedger))
             if hashedLedger != G_keyIntro['LedgerChecksum']:
-                logging.warning(ptype + ': G_ledger checksum won\'t agree with stored G_keyIntro checksum')
+                logging.warning(
+                    ptype + ': G_ledger checksum won\'t agree with stored G_keyIntro checksum')
                 self.transport.close()
                 return
-            validKeys, _ = getKeysThatSignedData(logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
-            numberOfKeysThatVote = len(G_peers) 
+            validKeys, _ = getKeysThatSignedData(
+                logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
+            numberOfKeysThatVote = len(G_peers)
             positiveVotes = len(validKeys)
-            if not positiveVotes > 67/100 * numberOfKeysThatVote:
+            if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
                 logging.warning(ptype + ': Not enough signatures of key intro voting')
                 self.transport.close()
                 return
             logging.info('-------- NEW KEY INTRODUCED TO THE LEDGER ----------')
             logging.info('Key: {}'.format(G_keyIntro['Key']))
-            logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
-                            positiveVotes, numberOfKeysThatVote))
-            logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
-            G_ledger = tmpLedger 
-        
+            logging.info(
+                '{} keys signed for the key introduction out of {} keys that voted'.format(
+                    positiveVotes, numberOfKeysThatVote))
+            logging.info('Success percentage: {}%'.format(
+                str(positiveVotes / numberOfKeysThatVote * 100)))
+            G_ledger = tmpLedger
+
         self.transport.close()
-                
 
     def connection_lost(self, exc):
         self.transport.close()
@@ -238,7 +242,7 @@ def addKey(kwargs):
     for key in gpg.list_keys(True):
         if key['keyid'] == fingerprint:
             foundkey = key
-    if foundkey == None:
+    if foundkey is None:
         return {'Fail': {'Reason': 'Key not found in gpg database'}}
 
     # Check if pow is invalid for the key
@@ -251,7 +255,7 @@ def addKey(kwargs):
 
     # Return if uploading to server is not requested
     # if 'noupload' in kwargs:
-    if kwargs['noupload'] == True:
+    if kwargs['noupload']:
         logging.warning('Adding key {} without uploading to key server'.format(fingerprint))
         return {'Success': {}}
 
@@ -266,10 +270,10 @@ def addKey(kwargs):
             # UPDATE ALSO THE PEER SERVER
             updatePeerServer()
             return {'Success': {}}
-    
+
     del(G_privateKeys[fingerprint])
     return {'Fail': {'Reason': 'Problem uploading key to server'}}
-    
+
 
 def listPeers(kwargs):
     return {'Success': G_peers}
@@ -314,10 +318,11 @@ def cliServer():
     with socketserver.TCPServer((HOST, PORT), MyCliHandler) as server:
         server.serve_forever()
 
+
 def nodeServer():
     loop = asyncio.new_event_loop()
     try:
-        server = loop.run_until_complete(loop.create_server(SynchronizerProtocol,'',2222))
+        server = loop.run_until_complete(loop.create_server(MainServerProtocol, '', 2222))
     except OSError as e:
         logging.error('Error running the node server: {}. Exiting..'.format(e))
         stop()
@@ -325,7 +330,7 @@ def nodeServer():
     server.close()
     loop.run_until_complete(server.wait_closed())
     loop.close()
-    
+
 
 def getRemoteIps():
     remoteips = []
@@ -362,19 +367,23 @@ def getConsesusValidLedger(ledgerResponces):
         # Avoid duplications
         setKeys = set(ledgersWithSignedKeys[ledger])
         ledgersWithSignedKeys[ledger] = list(setKeys)
-    numberOfKeysThatVote = len(G_peers) 
+    numberOfKeysThatVote = len(G_peers)
     logging.info('-------- VOTING TABLE ---------')
     logging.info('{} keys voting!'.format(numberOfKeysThatVote))
     for ledger in ledgersWithSignedKeys:
-        logging.warning('LEDGER: {}\n\t\t\tVOTERS: {}'.format(ledger, len(ledgersWithSignedKeys[ledger])))
+        logging.warning(
+            'LEDGER: {}\n\t\t\tVOTERS: {}'.format(
+                ledger, len(
+                    ledgersWithSignedKeys[ledger])))
     for ledger in ledgersWithSignedKeys:
         positiveVotes = len(ledgersWithSignedKeys[ledger])
-        if positiveVotes > 67/100 * numberOfKeysThatVote:
+        if positiveVotes > 67 / 100 * numberOfKeysThatVote:
             logging.info('-------- NEW VOTED LEDGER ----------')
             logging.info('Ledger: {}'.format(ledger))
             logging.info('{} keys signed for the ledger out of {} keys that voted'.format(
-                            positiveVotes, numberOfKeysThatVote))
-            logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
+                positiveVotes, numberOfKeysThatVote))
+            logging.info('Success percentage: {}%'.format(
+                str(positiveVotes / numberOfKeysThatVote * 100)))
             return json.loads(ledger)
     logging.warning('-------- NO CONSESUS FOR A LEDGER -------')
     return None
@@ -393,7 +402,7 @@ def getKeysThatSignedLedger(response):
 def sendHello(fprint=None, proof=None):
     # Send hello to the other peers
     hello = {'Type': 'HELLO', 'Data': []}
-    if fprint == None:
+    if fprint is None:
         for key in G_privateKeys.keys():
             hello['Data'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
     else:
@@ -413,12 +422,14 @@ def addToKeyring(fingerprint):
     servers = G_configuration['KEY_SERVERS']['adresses']
     for keyserver in servers:
         response = gpg.recv_keys(keyserver, '0x' + fingerprint).stderr
-        logging.info('Sent {} to {} keyserver and got response: {}'.format(fingerprint, keyserver, response))
+        logging.info(
+            'Sent {} to {} keyserver and got response: {}'.format(
+                fingerprint, keyserver, response))
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
             return True
     return False
-    
+
 
 def interruptHandler(signum, frame):
     stop()
@@ -455,15 +466,16 @@ def updatePeerServer(initial=False):
 
     if peersResponse['Response'] == 'Fail':
         logging.error('Could not receive valid data from the peer server\n'
-              '{}\nExiting..'.format(peersResponse['Reason']))
+                      '{}\nExiting..'.format(peersResponse['Reason']))
         stop()
     return peersResponse
+
 
 def introduceKeyToLedger(kwargs):
     key = kwargs['keytoadd']
     if key not in G_privateKeys:
         return {'Fail': {'Reason': 'Invalid key'}}
-    keyproof = key + '_' + str(G_privateKeys[key]) 
+    keyproof = key + '_' + str(G_privateKeys[key])
     logging.info('====> keyproof: {}'.format(keyproof))
     if keyproof in G_ledger:
         return {'Fail': {'Reason': 'Key already in ledger'}}
@@ -472,11 +484,21 @@ def introduceKeyToLedger(kwargs):
     logging.info('====> newLedger: {}'.format(newLedger))
     chksum = getmd5(json.dumps(newLedger, sort_keys=True))
     logging.info('====> checksum: {}'.format(chksum))
-    signatures = signWithKeys(GPGDIR, G_privateKeys.keys(), [key], chksum, 'mylongminicashsillypassphrase')
+    signatures = signWithKeys(
+        GPGDIR,
+        G_privateKeys.keys(),
+        [key],
+        chksum,
+        'mylongminicashsillypassphrase')
     logging.info('====> signatures: {}'.format(signatures))
-    message = {'Type':'REQ_INTRO_KEY', 'Data':{'Key':keyproof, 'Checksum':chksum, 'Sig':signatures[key]}}
+    message = {
+        'Type': 'REQ_INTRO_KEY',
+        'Data': {
+            'Key': keyproof,
+            'Checksum': chksum,
+            'Sig': signatures[key]}}
     logging.info('====> message: {}'.format(message))
-    
+
     results = sendReceiveToMany(message, getRemoteIps())
     # collect all the valid data
     logging.info('Checking incoming RESP_INTRO_KEY data..')
@@ -494,29 +516,30 @@ def introduceKeyToLedger(kwargs):
         if messageHash != data['Checksum']:
             logging.warning('Invalid checksum in data')
             continue
-        _, keysSigsToCollect = getKeysThatSignedData(logging, GPGDIR, data['Signatures'], messageHash)
+        _, keysSigsToCollect = getKeysThatSignedData(
+            logging, GPGDIR, data['Signatures'], messageHash)
         totalKeysSigs.update(keysSigsToCollect)
     # check for the consesus
-    numberOfKeysThatVote = len(G_peers) 
+    numberOfKeysThatVote = len(G_peers)
     positiveVotes = len(totalKeysSigs)
-    if not positiveVotes > 67/100 * numberOfKeysThatVote:
+    if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
         logging.info('-------- NEW KEY FAILED TO ENTER THE LEDGER ----------')
         logging.info('Key: {}'.format(key))
         logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
-                        positiveVotes, numberOfKeysThatVote))
-        return {'Fail': {'Reason':'Not enough votes'}}
-        
+            positiveVotes, numberOfKeysThatVote))
+        return {'Fail': {'Reason': 'Not enough votes'}}
+
     logging.info('-------- NEW KEY INTRODUCED TO THE LEDGER ----------')
     logging.info('Key: {}'.format(key))
     logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
-                    positiveVotes, numberOfKeysThatVote))
+        positiveVotes, numberOfKeysThatVote))
     logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
     # Send the 'REQ_INTRO_KEY_END' to all the nodes
-    endMessage = {'Type':'REQ_INTRO_KEY_END', 'Data':{'Checksum':messageHash,
-        'Signatures':totalKeysSigs}}
+    endMessage = {'Type': 'REQ_INTRO_KEY_END', 'Data': {'Checksum': messageHash,
+                                                        'Signatures': totalKeysSigs}}
     sendToMany(endMessage, getRemoteIps())
     return {'Success': {}}
-        
+
 
 def main():
     signal.signal(signal.SIGINT, interruptHandler)
@@ -526,11 +549,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--loglevel', help='Level of logging in file minicash.log')
     parser.add_argument('--peerserver', help='IP of the peer discovery server')
-    parser.add_argument('--homedir', help='Directory inside which .minicash should \
-                                                     be located')
+    parser.add_argument('--homedir', help='Directory inside which .minicash should be located')
     parser.add_argument('--nopid', action='store_true', help='Run without pid file')
-
-    subparsers = parser.add_subparsers(dest='command')
 
     # Read the arguments of the command line
     args = parser.parse_args()
@@ -538,7 +558,7 @@ def main():
     if args.nopid:
         global noPid
         noPid = True
-    
+
     # Checking for already running instance
     if not noPid:
         pid = str(os.getpid())
@@ -552,8 +572,6 @@ def main():
             print('Error writting pid file: {}'.format(e))
             exit()
 
-
-    # Initialize data folder
     global HOMEDIR
     global MINICASHDIR
     global GPGDIR
@@ -589,7 +607,7 @@ def main():
     logging.info('The program started')
     print('Program started')
 
-    ## Load the configuration
+    # Load the configuration
     try:
         with open(os.path.join(MINICASHDIR, 'config.json'), 'r') as configfile:
             G_configuration = json.load(configfile)
@@ -599,7 +617,7 @@ def main():
         print('Error while loading config.json file to memory: {}\nExiting..'.format(e))
         stop()
 
-    ## Load the peers
+    # Load the peers
     try:
         with open(os.path.join(MINICASHDIR, 'peers.json'), 'r') as peersFile:
             G_peers = json.load(peersFile)
@@ -607,7 +625,7 @@ def main():
         print('Error while loading peers.json file to memory: {}\nExiting..'.format(e))
         stop()
 
-    ## Load the private keys
+    # Load the private keys
     try:
         with open(os.path.join(MINICASHDIR, 'private_keys.json'), 'r') as privateKeysFile:
             G_privateKeys = json.load(privateKeysFile)
@@ -615,7 +633,7 @@ def main():
         print('Error while loading private_keys.json file to memory: {}\nExiting..'.format(e))
         stop()
 
-    ## Load the ledger
+    # Load the ledger
     try:
         with open(os.path.join(MINICASHDIR, 'ledger.json'), 'r') as ledgerFile:
             G_ledger = json.load(ledgerFile)
@@ -638,8 +656,6 @@ def main():
 
             # ---------  INITIAL CONNECTIONS ----------------
             peersResponse = updatePeerServer(initial=True)
-
-            
             maps = peersResponse['Maps']
             for key, val in maps.items():
                 # Check if we already have the key in our file
@@ -647,33 +663,32 @@ def main():
                     continue
                 # Check the proof of work of the key.
                 if not isValidProof(key, val['Proof']):
-                    logging.info('The key {} is rejected because of invalid proof of work'.format(key))
+                    logging.info(
+                        '#peersResponse: The key {} is rejected because of invalid proof of work'.format(key))
                     continue
                 # Try to download the key from the key server. If it's impossible continue
                 if not addToKeyring(key):
-                    logging.info('The key {} is rejected because can not be found on key server'.format(
-                                    key))
+                    logging.info(
+                        '#peersResponse: The key {} is rejected because can not be found on key server'.format(key))
                     continue
                 # Add the key to the keyring
-                G_peers[key] = val   
-                logging.info('Peers Memory: Peer {} added from {} with proof of work {}'.format(
-                    G_peers[key], val['Ip'], val['Proof']
-                            ))
+                G_peers[key] = val
+                logging.info(
+                    '#peersResponse: Peers Memory: Peer {} added from {} with proof of work {}'.format(
+                        G_peers[key], val['Ip'], val['Proof']))
 
             # Send hello to all nodes with peer list
             sendHello()
-            
-            # Ask for ledger from the other nodes 
-            results = sendReceiveToMany({'Type':'REQ_LEDGER', 'Data': {}}, getRemoteIps())
+
+            # Ask for ledger from the other nodes
+            results = sendReceiveToMany({'Type': 'REQ_LEDGER', 'Data': {}}, getRemoteIps())
             logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
                 logging.info('Ledger uninspected reponse received from keys {}'.format(
-                                response['Data']['Signatures'].keys()))
+                    response['Data']['Signatures'].keys()))
             consesusLedger = getConsesusValidLedger(results)
-            if consesusLedger != None:
+            if consesusLedger is not None:
                 G_ledger = consesusLedger
-
-
 
             logging.info('---MEMORY DATA----')
             logging.info('HOMEDIR: {}'.format(HOMEDIR))
@@ -685,13 +700,13 @@ def main():
             logging.info('G_ledger: {}'.format(G_ledger))
             logging.info('---END OF MEMORY DATA---')
 
-
             cliThread = threading.Thread(target=cliServer)
             cliThread.start()
 
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
         stop()
-    
+
+
 if __name__ == '__main__':
     main()
