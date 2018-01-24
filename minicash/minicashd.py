@@ -31,7 +31,7 @@ G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
 G_ledger = {}
-G_keyIntro = {'Key': None, 'LedgerChecksum': None, 'MessageHash': None}
+G_keyIntro = {'Key': None, 'LedgerHash': None, 'MessageHash': None}
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
@@ -76,7 +76,7 @@ class MainServerProtocol(asyncio.Protocol):
 
         parser = PacketParser(message)
         if not parser.isPacketValid():
-            logging.warning('Invalid incoming data => {}'.format(parser.errorMessage))
+            logging.warning('Invalid packet => {}'.format(parser.errorMessage))
             self.transport.close()
             return
         ptype = parser.getType()
@@ -89,7 +89,7 @@ class MainServerProtocol(asyncio.Protocol):
                     continue
                 # Check for valid proof of work
                 if not addToKeyring(fprint):
-                    logging.info('The key {} is rejected because can not'
+                    logging.warning('The key {} is rejected because can not'
                                  'be found on key server'.format(fprint))
                     continue
                 G_peers[fprint] = {'Proof': proof, 'Ip': self.peername[0]}
@@ -120,7 +120,7 @@ class MainServerProtocol(asyncio.Protocol):
             newLedger[pdata['Key']] = 100000000
             hashedNewLedger = getmd5(json.dumps(newLedger, sort_keys=True))
             if not hashedNewLedger == pdata['Checksum']:
-                logging.warning('The checksums don\'t fit')
+                logging.warning('The checksums doesn\'t fit')
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
                 return
             validKeys, _ = getKeysThatSignedData(
@@ -133,24 +133,18 @@ class MainServerProtocol(asyncio.Protocol):
                                           hashedReceivedMessage, 'mylongminicashsillypassphrase')
             reqIntroKeyResponse['Data']['Signatures'] = signaturesDict
             G_keyIntro['Key'] = pdata['Key']
-            G_keyIntro['LedgerChecksum'] = pdata['Checksum']
+            G_keyIntro['LedgerHash'] = pdata['Checksum']
             G_keyIntro['MessageHash'] = hashedReceivedMessage
             self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
 
         elif ptype == 'REQ_INTRO_KEY_END':
-            logging.info('------------- G_keyIntro ------------')
-            logging.info('key: {}'.format(G_keyIntro['Key']))
-            logging.info('LedgerChecksum: {}'.format(G_keyIntro['LedgerChecksum']))
-            logging.info('MessageHash: {}'.format(G_keyIntro['MessageHash']))
             if pdata['Checksum'] != G_keyIntro['MessageHash']:
                 logging.warning(ptype + ': Invalid checksum or key')
                 return
             tmpLedger = G_ledger.copy()
             tmpLedger[G_keyIntro['Key']] = 100000000
-            logging.info('tmpledger: {}'.format(tmpLedger))
             hashedLedger = getmd5(json.dumps(tmpLedger, sort_keys=True))
-            logging.info('hashedLedger: {}'.format(hashedLedger))
-            if hashedLedger != G_keyIntro['LedgerChecksum']:
+            if hashedLedger != G_keyIntro['LedgerHash']:
                 logging.warning(
                     ptype + ': G_ledger checksum won\'t agree with stored G_keyIntro checksum')
                 self.transport.close()
@@ -357,7 +351,7 @@ def getConsesusValidLedger(ledgerResponces):
     for response in filteredResponses:
         ledger = json.dumps(response['Data']['Ledger'], sort_keys=True)
         signedKeys, _ = getKeysThatSignedLedger(response)
-        logging.info('-------- Filtered ledger and keys that signed it -------')
+        logging.info('-------- Ledger and keys that signed it -------')
         logging.info('Ledger: {}'.format(ledger))
         logging.info('Keys: {}'.format(signedKeys))
         if ledger not in ledgersWithSignedKeys:
@@ -481,23 +475,19 @@ def introduceKeyToLedger(kwargs):
         return {'Fail': {'Reason': 'Key already in ledger'}}
     newLedger = G_ledger.copy()
     newLedger[keyproof] = 100000000
-    logging.info('====> newLedger: {}'.format(newLedger))
     chksum = getmd5(json.dumps(newLedger, sort_keys=True))
-    logging.info('====> checksum: {}'.format(chksum))
     signatures = signWithKeys(
         GPGDIR,
         G_privateKeys.keys(),
         [key],
         chksum,
         'mylongminicashsillypassphrase')
-    logging.info('====> signatures: {}'.format(signatures))
     message = {
         'Type': 'REQ_INTRO_KEY',
         'Data': {
             'Key': keyproof,
             'Checksum': chksum,
             'Sig': signatures[key]}}
-    logging.info('====> message: {}'.format(message))
 
     results = sendReceiveToMany(message, getRemoteIps())
     # collect all the valid data
@@ -523,13 +513,13 @@ def introduceKeyToLedger(kwargs):
     numberOfKeysThatVote = len(G_peers)
     positiveVotes = len(totalKeysSigs)
     if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
-        logging.info('-------- NEW KEY FAILED TO ENTER THE LEDGER ----------')
+        logging.info('-------- KEY INTRO REQUESTER: NEW KEY FAILED TO ENTER THE LEDGER ----------')
         logging.info('Key: {}'.format(key))
         logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
             positiveVotes, numberOfKeysThatVote))
         return {'Fail': {'Reason': 'Not enough votes'}}
 
-    logging.info('-------- NEW KEY INTRODUCED TO THE LEDGER ----------')
+    logging.info('-------- KEY INTRO REQUESTER: NEW KEY INTRODUCED TO THE LEDGER ----------')
     logging.info('Key: {}'.format(key))
     logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
         positiveVotes, numberOfKeysThatVote))

@@ -40,13 +40,13 @@ def signWithKeys(gpgdir, privateKeys, keysToUse, data, password):
 # Arguments:
 # keySigs: a dictionary with keys as keys and signatures as values
 def getKeysThatSignedData(logging, gpgdir, keySigs, data):
+    logHeader = '@getKeysThatSignedData: '
     validKeys = []
     validKeysSigs = {}
     gpg = gnupg.GPG(gnupghome=gpgdir)
     for fprint in keySigs:
         for key in gpg.list_keys():
             if key['keyid'] == fprint:
-                logging.info('Checking key {}..'.format(fprint))
                 foundKey = True
                 break
         if not 'foundKey' in locals():
@@ -54,22 +54,22 @@ def getKeysThatSignedData(logging, gpgdir, keySigs, data):
         signature = keySigs[fprint]
         verification = gpg.verify(signature)
         if verification.key_id != fprint:
-            logging.info('Wrong verification keyid')
+            logging.info(logHeader + 'Wrong verification keyid')
             continue
         if verification.status != 'signature valid':
-            logging.info('Not valid signature')
+            logging.info(logHeader + 'Not valid signature')
             continue
         messagePattern = re.compile('(?<=\n\n)\w+')
         extractFromSignature = messagePattern.search(signature)
         if extractFromSignature is None:
-            logging.info('Wrong signature format')
+            logging.info(logHeader + 'Wrong signature format')
             continue
         result =  extractFromSignature.group(0)
         if result != data:
-            logging.info('Signed data is not the expected')
-            logging.info('Whole signature: {}'.format(signature))
-            logging.info('Result: {}'.format(result))
-            logging.info('dataToCheck: {}'.format(data))
+            logging.info(logHeader + 'Signed data is not the expected')
+            logging.info(logHeader + 'Whole signature: {}'.format(signature))
+            logging.info(logHeader + 'Result: {}'.format(result))
+            logging.info(logHeader + 'dataToCheck: {}'.format(data))
             continue
         validKeys.append(fprint)
         validKeysSigs[fprint] = signature
