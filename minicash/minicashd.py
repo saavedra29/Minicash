@@ -32,6 +32,8 @@ G_configuration = {}
 G_peers = {}
 G_ledger = {}
 G_keyIntro = {'Key': None, 'LedgerHash': None, 'MessageHash': None}
+G_transaction = {'From': None, 'To': None, 'Amount': None, 
+                    'LedgerHash': None, 'MessageHash': None}
 HOMEDIR = ''
 MINICASHDIR = ''
 GPGDIR = ''
@@ -166,6 +168,79 @@ class MainServerProtocol(asyncio.Protocol):
                 str(positiveVotes / numberOfKeysThatVote * 100)))
             G_ledger = tmpLedger
 
+        elif ptype == 'REQ_PAY':
+            hashedReceivedMessage = getmd5(data.decode('utf-8'))
+            respPayMessage = {'Type': 'RESP_PAY', 'Data': {
+                'Checksum': hashedReceivedMessage, 'Signatures':{}
+            }}
+            fromKey = pdata['Fromkey']
+            toKey = pdata['Tokey']
+            amount = pdata['Amount']
+            res = isTransactionValid(toKey, fromKey, amount)
+            if 'Fail' in res:
+                self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                return
+            ledgerCopy = G_ledger.copy()
+            fromKeyProof = fromKey + '_' + str(G_peers[fromKey]['Proof'])
+            toKeyProof = toKey + '_' + str(G_peers[toKey]['Proof'])
+            ledgerCopy[fromKeyproof] -= amount
+            ledgerCopy[toKeyproof] += amount
+            hashedLedger = getmd5(json.dumps(ledgerCopy, sort_keys=True))
+            if hashedLedger != pdata['Checksum']:
+                self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                return
+            validKeys, _ = getKeysThatSignedData(logging, GPGDIR, {fromKey:pdata['Sig']},
+                                                    pdata['Checksum'])
+            if fromKey not in validKeys:
+                logging.warning('Wrong signature')
+                self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                return
+            signaturesDict = signWithKeys(GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),
+                                          hashedReceivedMessage, 'mylongminicashsillypassphrase')
+            respPayMessage['Data']['Signatures'] = signaturesDict
+            G_transaction['From'] = fromKey
+            G_transaction['To'] = toKey
+            G_transaction['Amount'] = amount 
+            G_transaction['LedgerHash'] = pdata['Checksum']
+            G_transaction['MessageHash'] = hashedReceivedMessage 
+            self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                
+        elif ptype == 'REQ_PAY_END':
+            if pdata['Checksum'] != G_transaction['MessageHash']:
+                logging.warning(ptype + ': Invalid checksum or key')
+                return
+            ledgerCopy = G_ledger.copy()
+            fromKeyProof = fromKey + '_' + str(G_peers[G_transaction['From']]['Proof'])
+            toKeyProof = toKey + '_' + str(G_peers[G_transaction['To']]['Proof'])
+            amount = G_transaction['Amount']
+            ledgerCopy[fromKeyproof] -= amount
+            ledgerCopy[toKeyproof] += amount
+            hashedLedger = getmd5(json.dumps(ledgerCopy, sort_keys=True))
+            if hashedLedger != pdata['Checksum']:
+                logging.info('Invalid transaction: wrong ledger hash')
+                self.transport.close()
+                return
+            validKeys, _ = getKeysThatSignedData(
+                logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
+            numberOfKeysThatVote = len(G_peers)
+            positiveVotes = len(validKeys)
+            if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
+                logging.warning(ptype + ': Not enough signatures of transaction voting')
+                self.transport.close()
+                return
+            logging.info('-------- NEW TRANSACTION DONE ----------')
+            logging.info('{} ==> {} ({} cash)'.format(fromKey, toKey, amountAsked))
+            logging.info('{} keys signed for the key introduction out of {} '
+                'keys that voted'.format(positiveVotes, numberOfKeysThatVote))
+            logging.info('Success percentage: {}%'.format(
+                str(positiveVotes / numberOfKeysThatVote * 100)))
+            logging.info('{} keys signed for the transaction out of {} keys that '
+                'voted'.format(positiveVotes, numberOfKeysThatVote))
+            logging.info('Success percentage: {}%'.format(
+                str(positiveVotes / numberOfKeysThatVote * 100)))
+            G_ledger = ledgerCopy
+            
+
         self.transport.close()
 
     def connection_lost(self, exc):
@@ -286,7 +361,63 @@ def getLedger(kwargs):
 
 
 def send(kwargs):
-    return kwargs
+    fromKey = kwargs['from']
+    toKey = kwargs['to']
+    amountAsked = kwargs['amount']
+    password = kwargs['password']
+    res =  isTransactionValid(fromKey, toKey, amountAsked)
+    if 'False' in res:
+        return res
+    ledgerCopy = G_ledger.copy()
+    ledgerCopy[fromKeyproof] -= amountAsked
+    ledgerCopy[toKeyproof] += amountAsked
+    hashedLedger = getmd5(json.dumps(ledgerCopy, sort_keys=True))
+    signatureDict = signWithKeys(GPGDIR, G_privateKeys, fromKey, hashedNewLedger, password)
+    if not signaturesDict[fromKey].fingerprint[24:] == fromKey:
+        return {'Fail':{'Reason':'Probably you have used wrong password'.format(toKey)}}
+    message = {'Type':'REQ_PAY', 'Data': {
+        'Fromkey': fromKey, 'Tokey': toKey, 'Amount': amountAsked,
+        'Checksum': hashedLedger, 'Sig': signaturesDict[fromKey]
+        }}
+    hashedMessage = getmd5(json.dumps(message, sort_keys=True))
+    responses = sendReceiveToMany(message, getRemoteIps) 
+
+    totalKeysSigs = {}
+    for response in results:
+        parser = PacketParser(response)
+        if not parser.isPacketValid():
+            logging.warning('Invalid incoming data: {}'.format(parser.errorMessage))
+            continue
+        if not parser.type == 'REQ_PAY':
+            logging.warning('Invalid incoming data type')
+            continue
+        data = parser.data
+        if hashedMessage != data['Checksum']:
+            logging.warning('Invalid checksum in data')
+            continue
+        _, keysSigsToCollect = getKeysThatSignedData(
+            logging, GPGDIR, data['Signatures'], hashedMessage)
+        totalKeysSigs.update(keysSigsToCollect)
+    # check for the consesus
+    numberOfKeysThatVote = len(G_peers)
+    positiveVotes = len(totalKeysSigs)
+    if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
+        logging.info('-------- SEND REQUESTER: NEW TRANSACTION FAILED ----------')
+        logging.info('{} ==> {} ({} cash)'.format(fromKey, toKey, amountAsked))
+        logging.info('{} keys signed for the transaction out of {} keys that voted'.format(
+            positiveVotes, numberOfKeysThatVote))
+        return {'Fail': {'Reason': 'Not enough votes'}}
+
+    logging.info('-------- SEND REQUESTER: NEW TRANSACTION ----------')
+    logging.info('{} ==> {} ({} cash)'.format(fromKey, toKey, amountAsked))
+    logging.info('{} keys signed for the transaction out of {} keys that voted'.format(
+        positiveVotes, numberOfKeysThatVote))
+    logging.info('Success percentage: {}%'.format(str(positiveVotes / numberOfKeysThatVote * 100)))
+    # Send the 'REQ_INTRO_KEY_END' to all the nodes
+    endMessage = {'Type': 'REQ_PAY_END', 'Data': {'Checksum': messageHash,
+                                                        'Signatures': totalKeysSigs}}
+    sendToMany(endMessage, getRemoteIps())
+    return {'Success': {}}
 
 
 def stop():
@@ -324,6 +455,35 @@ def nodeServer():
     server.close()
     loop.run_until_complete(server.wait_closed())
     loop.close()
+
+
+def isTransactionValid(fromKey, toKey, amountAsked)
+    if fromKey not in G_peers:
+        return {'Fail':{'Reason':'{} not in peers'.format(fromKey)}}
+    fromKeyproof = fromKey + '_' + str(G_peers[fromKey]['Proof'])
+    if fromKeyproof not in G_ledger:
+        return {'Fail':{'Reason':'{} not in ledger'.format(fromKey)}}
+    if toKey not in G_peers:
+        return {'Fail':{'Reason':'{} not in peers'.format(toKey)}}
+    toKeyproof = toKey + '_' + str(G_peers[toKey]['Proof'])
+    if toKeyproof not in G_ledger:
+        return {'Fail':{'Reason':'{} not in ledger'.format(toKey)}}
+    amountAsked = convert(amountAsked)
+    if amountAsked < 1:
+        return {'Fail':{'Reason':'To small amount to send'.format(toKey)}}
+    if amountAsked > G_ledger[fromKeyproof]:
+        return {'Fail':{'Reason':'Not enough cash to send'.format(toKey)}}
+    return {'Success':{}}
+
+def convert(amount):
+    if type(amount) == str:
+        # convert to microcash
+        return int(1000000 * round(float(amount), 6))
+    elif type(amount) == int:
+        # convert to representation string of cash
+        return '{:f}'.format(amount/1000000.0)
+    else:
+        raise TypeError('convert(): wrong argument type')
 
 
 def getRemoteIps():
