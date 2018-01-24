@@ -61,7 +61,7 @@ def getBalances(args):
 def getLedger(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
-def pay(args):
+def send(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
 
@@ -135,12 +135,12 @@ getbalances_cmd.set_defaults(func=getBalances)
 # stop subcommand
 stop_cmd = subparser.add_parser('stop', help='Stop the server')
 stop_cmd.set_defaults(func=stop)
-# pay_subcommand
-pay_cmd = subparser.add_parser('pay', help='Pay to other key')
-pay_cmd.add_argument('from', help='The output fingerprint')
-pay_cmd.add_argument('to', help='The input fingerprint')
-pay_cmd.add_argument('amount', help='The amount to pay')
-pay_cmd.set_defaults(func=pay)
+# send_subcommand
+send_cmd = subparser.add_parser('send', help='Pay to other key')
+send_cmd.add_argument('from', help='The output fingerprint')
+send_cmd.add_argument('to', help='The input fingerprint')
+send_cmd.add_argument('amount', help='The amount to send')
+send_cmd.set_defaults(func=send)
 
 if __name__ == '__main__':
     args = parser.parse_args()

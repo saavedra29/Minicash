@@ -49,7 +49,7 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         dispatcher.add_method(listLocalKeys)
         dispatcher.add_method(listPeers)
         dispatcher.add_method(getBalances)
-        dispatcher.add_method(pay)
+        dispatcher.add_method(send)
         dispatcher.add_method(addKey)
         dispatcher.add_method(stop)
         dispatcher.add_method(introduceKeyToLedger)
@@ -285,7 +285,7 @@ def getLedger(kwargs):
     return {'Success': G_ledger}
 
 
-def pay(kwargs):
+def send(kwargs):
     return kwargs
 
 
