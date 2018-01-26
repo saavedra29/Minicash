@@ -21,6 +21,8 @@ from utils.checksum import isValidProof
 from utils.checksum import getmd5
 from utils.parsers import isValidLedgerResponseFormat
 from utils.parsers import PacketParser
+from utils.parsers import isValidLedgerKey
+from utils.parsers import isValidFingerprint
 from utils.gpg import signWithKeys
 from utils.gpg import getKeysThatSignedData
 
@@ -171,11 +173,7 @@ class MainServerProtocol(asyncio.Protocol):
 
         elif ptype == 'REQ_PAY':
             
-            hashedReceivedMessage = getmd5(data)
-            logging.info('DATA: {}'.format(data))
-            logging.info('DATA DECODE: {}'.format(data.decode('utf-8')))
-            logging.info('TEMP4 received message: {}'.format(json.loads(data)))
-            logging.info('TEMP4 received hashed message: {}'.format(hashedReceivedMessage))
+            hashedReceivedMessage = getmd5(data.decode('utf-8'))
 
             respPayMessage = {'Type': 'RESP_PAY', 'Data': {
                 'Checksum': hashedReceivedMessage, 'Signatures':{}
@@ -240,7 +238,8 @@ class MainServerProtocol(asyncio.Protocol):
                 self.transport.close()
                 return
             logging.info('-------- NEW TRANSACTION DONE ----------')
-            logging.info('{} ==> {} ({} cash)'.format(fromKey, toKey, amountAsked))
+            logging.info('{} ==> {} ({} cash)'.format(G_transaction['To'], G_transaction['From'],
+                 G_transaction['Amount']))
             logging.info('{} keys signed for the key introduction out of {} '
                 'keys that voted'.format(positiveVotes, numberOfKeysThatVote))
             logging.info('Success percentage: {}%'.format(
@@ -364,7 +363,16 @@ def listLocalKeys(kwargs):
 
 
 def getBalances(kwargs):
-    return kwargs
+    entries = {}
+    for key in G_privateKeys.keys():
+        ledgerKey = convertKey(key)
+        if not ledgerKey in G_ledger:
+            continue
+        milicashes = G_ledger[ledgerKey]
+        presentation = convert(milicashes)
+        entries[key] = presentation
+    response = {'Success':entries}
+    return response
 
 
 def getLedger(kwargs):
@@ -377,28 +385,20 @@ def send(kwargs):
     amountAsked = kwargs['amount']
     res =  isTransactionValid(fromKey, toKey, amountAsked)
     if 'Fail' in res:
-        logging.warning('@send: 1')
         return {'Fail':{'Reason': res['Fail']['Reason']}}
     transactionResult = doTransaction(fromKey, toKey, convert(amountAsked), G_ledger)
     if 'Fail' in transactionResult:
-        logging.warning('@send: 2')
         return {'Fail':{'Reason':{transaction['Fail']['Reason']}}}
     hashedLedger = getmd5(json.dumps(transactionResult['Ledger'], sort_keys=True))
     signaturesDict = signWithKeys(logging, GPGDIR, G_privateKeys, [fromKey], hashedLedger, G_password)
-    logging.warning('TEMP1: {}'.format(signaturesDict))
     if not fromKey in signaturesDict:
-        logging.warning('@send: 3')
         return {'Fail':{'Reason':'Probably you have used wrong password'}}
     message = {'Type':'REQ_PAY', 'Data': {
         'Fromkey': fromKey, 'Tokey': toKey, 'Amount': amountAsked,
         'Checksum': hashedLedger, 'Sig': signaturesDict[fromKey]
         }}
-    hashedMessage = getmd5(json.dumps(message, sort_keys=True))
-    logging.info('TEMP4 => req_pay sent message: {}'.format(message))
-    logging.info('TEMP4 => req_pay sent hashed message: {}'.format(hashedMessage))
+    hashedMessage = getmd5(json.dumps(message))
     responses = sendReceiveToMany(message, getRemoteIps()) 
-    for response in responses:
-        logging.info('TEMP3 => returns: {}'.format(response))
 
     totalKeysSigs = {}
     for response in responses:
@@ -481,9 +481,9 @@ def doTransaction(fromFprint, toFprint, amount, ledger):
     fromKeyProof = fromFprint + '_' + str(G_peers[fromFprint]['Proof'])
     toKeyProof = toFprint + '_' + str(G_peers[toFprint]['Proof'])
     ledgerCopy = ledger.copy()
-    ledger[fromKeyProof] -= amount
-    ledger[toKeyProof] += amount
-    return {'Ledger':ledger}
+    ledgerCopy[fromKeyProof] -= amount
+    ledgerCopy[toKeyProof] += amount
+    return {'Ledger':ledgerCopy}
     
 
 def isTransactionValid(fromKey, toKey, amountAsked):
@@ -513,6 +513,14 @@ def convert(amount):
         return amount/1000000.0
     else:
         raise TypeError('convert(): wrong argument type')
+
+
+def convertKey(key):
+    if not isValidLedgerKey(key) and not isValidFingerprint(key):
+        return False
+    if isValidLedgerKey(key):
+        return isValidLedgerKey[:16]
+    return key + '_' + str(G_peers[key]['Proof'])
 
 
 def getRemoteIps():
@@ -554,7 +562,7 @@ def getConsesusValidLedger(ledgerResponces):
     logging.info('-------- VOTING TABLE ---------')
     logging.info('{} keys voting!'.format(numberOfKeysThatVote))
     for ledger in ledgersWithSignedKeys:
-        logging.warning(
+        logging.info(
             'LEDGER: {}\n\t\t\tVOTERS: {}'.format(
                 ledger, len(
                     ledgersWithSignedKeys[ledger])))

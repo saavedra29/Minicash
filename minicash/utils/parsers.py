@@ -36,7 +36,10 @@ def isValidLedgerKey(s):
     fprint = s[:16]
     if not isValidFingerprint(fprint):
         return False
-    if s[16] != '_':
+    try:
+        if s[16] != '_':
+            return False
+    except IndexError:
         return False
     proof = s[17:]
     try:

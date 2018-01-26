@@ -17,7 +17,6 @@ def getmd5(data):
 def signWithKeys(logging, gpgdir, privateKeys, keysToUse, data, password):
     if type(data) is dict:
         data = json.dumps(data, sort_keys=True)
-    logging.warning('TEMP2: data = {}'.format(data))
     gpg = gnupg.GPG(gnupghome=gpgdir, use_agent=False)
     signaturesDict = {}
     existingKeys = []
@@ -28,8 +27,6 @@ def signWithKeys(logging, gpgdir, privateKeys, keysToUse, data, password):
                 if searchingKey == listedKey['keyid']:
                     existingKeys.append(searchingKey)
     
-    logging.warning('TEMP2: keysToUse = {}'.format(keysToUse))
-    logging.warning('TEMP2: existingKeys = {}'.format(existingKeys))
     for key in existingKeys:
         signedData = gpg.sign(data, keyid=key,
                     passphrase=password)
