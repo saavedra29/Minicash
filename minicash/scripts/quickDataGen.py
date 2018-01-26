@@ -15,9 +15,9 @@ def addKey(kwargs):
     fingerprint = kwargs['key']
     proof = kwargs['pow']
     if 'gpgdir' in kwargs:
-        gpg = gnupg.GPG(gnupghome=kwargs['gpgdir'])
+        gpg = gnupg.GPG(gnupghome=kwargs['gpgdir'], use_agent=False)
     else:
-        gpg = gnupg.GPG(gnupghome=GPGDIR)
+        gpg = gnupg.GPG(gnupghome=GPGDIR, use_agent=False)
 
     foundkey = None
     for key in gpg.list_keys(True):
@@ -91,7 +91,7 @@ def main():
         # Create and add the keys 
         keysnum = args.keysnum
         try:
-            gpg = gnupg.GPG(gnupghome=GPGDIR)
+            gpg = gnupg.GPG(gnupghome=GPGDIR, use_agent=False)
         except Exception as e:
             print('Error creating quickstart keys: {}'.format(e))
             return

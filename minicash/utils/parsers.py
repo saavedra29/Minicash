@@ -191,11 +191,11 @@ class PacketParser:
                 if not isValidFingerprint(self.data['Tokey']): 
                     self.errorMessage = 'REQ_PAY: Invalid Tokey value'
                     return False
-                if not type(self.data['Amount']) is int:
-                    self.errorMessage = 'REQ_PAY: Amount is not integer'
+                if not type(self.data['Amount']) is float:
+                    self.errorMessage = 'REQ_PAY: Amount is not float'
                     return False
-                if self.data['Amount'] < 1:
-                    self.errorMessage = 'REQ_PAY: Amount is not 1 or larger'
+                if self.data['Amount'] <= 0:
+                    self.errorMessage = 'REQ_PAY: Amount is not larger than 0'
                     return False
                 if not isValidMD5Sum(self.data['Checksum']):
                     self.errorMessage = 'REQ_PAY: Invalid checksum value'

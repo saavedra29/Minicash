@@ -139,7 +139,7 @@ class TestValidPacket(unittest.TestCase):
                 'Data': {
                     'Fromkey':'C4ED6700DFB2A1DF',
                     30:'A22F2D8422520966',
-                    'Amount':4545446,
+                    'Amount':4545446.43,
                     'Checksum':'e811ba851763f04a1c54591bb748a424',
                     'Sig':'-----BEGIN PGP...'
                 }
@@ -335,7 +335,7 @@ class TestValidPacket(unittest.TestCase):
             'Data': {
                 'Fromkey':'C4ED6700DFB2A1DF',
                 'Tokey':'A22F2D8422520966',
-                'Amount':4545446,
+                'Amount':4545446.45,
 	            'Checksum':'e811ba851763f04a1c54591bb748a424',
 	            'Sig':'-----BEGIN PGP...'
             }

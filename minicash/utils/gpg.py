@@ -14,10 +14,11 @@ def getmd5(data):
 # 3: The keys we want to sign with
 # 4: The data to sign
 # 5: The password
-def signWithKeys(gpgdir, privateKeys, keysToUse, data, password):
+def signWithKeys(logging, gpgdir, privateKeys, keysToUse, data, password):
     if type(data) is dict:
         data = json.dumps(data, sort_keys=True)
-    gpg = gnupg.GPG(gnupghome=gpgdir)
+    logging.warning('TEMP2: data = {}'.format(data))
+    gpg = gnupg.GPG(gnupghome=gpgdir, use_agent=False)
     signaturesDict = {}
     existingKeys = []
     # Check for existing keys
@@ -26,7 +27,9 @@ def signWithKeys(gpgdir, privateKeys, keysToUse, data, password):
             for listedKey in gpg.list_keys(True):
                 if searchingKey == listedKey['keyid']:
                     existingKeys.append(searchingKey)
-
+    
+    logging.warning('TEMP2: keysToUse = {}'.format(keysToUse))
+    logging.warning('TEMP2: existingKeys = {}'.format(existingKeys))
     for key in existingKeys:
         signedData = gpg.sign(data, keyid=key,
                     passphrase=password)
@@ -43,7 +46,7 @@ def getKeysThatSignedData(logging, gpgdir, keySigs, data):
     logHeader = '@getKeysThatSignedData: '
     validKeys = []
     validKeysSigs = {}
-    gpg = gnupg.GPG(gnupghome=gpgdir)
+    gpg = gnupg.GPG(gnupghome=gpgdir, use_agent=False)
     for fprint in keySigs:
         for key in gpg.list_keys():
             if key['keyid'] == fprint:

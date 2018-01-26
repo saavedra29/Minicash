@@ -137,10 +137,9 @@ stop_cmd = subparser.add_parser('stop', help='Stop the server')
 stop_cmd.set_defaults(func=stop)
 # send_subcommand
 send_cmd = subparser.add_parser('send', help='Pay to other key')
-send_cmd.add_argument('from', help='The output fingerprint')
-send_cmd.add_argument('to', help='The input fingerprint')
+send_cmd.add_argument('from', help='The output address fingerprint')
+send_cmd.add_argument('to', help='The input address fingerprint')
 send_cmd.add_argument('amount', type=float, help='The amount to send')
-send_cmd.add_argument('password', help='Password for the key')
 send_cmd.set_defaults(func=send)
 
 if __name__ == '__main__':
