@@ -55,6 +55,9 @@ def listPeers(args):
 def getBalances(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
+def getAllBalances(args):
+    pp.pprint(runCommand(inspect.stack()[0][3], args))
+
 def getLedger(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
@@ -126,6 +129,9 @@ addkey_cmd.set_defaults(func=addKey)
 # get-balances subcommand
 getbalances_cmd = subparser.add_parser('getbalances', help='Get the balances')
 getbalances_cmd.set_defaults(func=getBalances)
+# get-all-balances subcommand
+getallbalances_cmd = subparser.add_parser('getallbalances', help='Get the balances of all the nodes')
+getallbalances_cmd.set_defaults(func=getAllBalances)
 # stop subcommand
 stop_cmd = subparser.add_parser('stop', help='Stop the server')
 stop_cmd.set_defaults(func=stop)

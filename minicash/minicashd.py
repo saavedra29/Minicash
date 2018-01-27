@@ -55,6 +55,7 @@ class MyCliHandler(socketserver.BaseRequestHandler):
         dispatcher.add_method(listLocalKeys)
         dispatcher.add_method(listPeers)
         dispatcher.add_method(getBalances)
+        dispatcher.add_method(getAllBalances)
         dispatcher.add_method(send)
         dispatcher.add_method(addKey)
         dispatcher.add_method(stop)
@@ -389,6 +390,20 @@ def getBalances(kwargs):
     response = {'Success':entries}
     return response
 
+
+def getAllBalances(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
+    entries = {}
+    for key in G_peers.keys():
+        ledgerKey = convertKey(key)
+        if not ledgerKey in G_ledger:
+            continue
+        milicashes = G_ledger[ledgerKey]
+        presentation = convert(milicashes)
+        entries[key] = presentation
+    response = {'Success':entries}
+    return response
 
 def getLedger(kwargs):
     if G_status != 'Running':
