@@ -92,14 +92,15 @@ class MainServerProtocol(asyncio.Protocol):
                 proof = entry['ProofOfWork']
                 if fprint in G_peers:
                     continue
-                # Check for valid proof of work
+                if not isValidProof(fprint, proof):
+                    logging.warning('The key {} is rejected because of wrong proof of work'.format(
+                        fprint))
+                    continue
                 if not addToKeyring(fprint):
                     logging.warning('The key {} is rejected because can not'
                                  'be found on key server'.format(fprint))
                     continue
                 G_peers[fprint] = {'Proof': proof, 'Ip': self.peername[0]}
-                logging.info('{} key with {} proof received from {}'.format(
-                    fprint, proof, self.peername[0]))
         elif ptype == 'REQ_LEDGER':
             # Get dumped ledger's md5
             dumpedLedger = json.dumps(G_ledger, sort_keys=True)
@@ -122,7 +123,7 @@ class MainServerProtocol(asyncio.Protocol):
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
                 return
             newLedger = G_ledger.copy()
-            newLedger[pdata['Key']] = 100000000
+            newLedger[pdata['Key']] = 10000000
             hashedNewLedger = getmd5(json.dumps(newLedger, sort_keys=True))
             if not hashedNewLedger == pdata['Checksum']:
                 logging.warning('The checksums doesn\'t fit')
@@ -147,7 +148,7 @@ class MainServerProtocol(asyncio.Protocol):
                 logging.warning(ptype + ': Invalid checksum or key')
                 return
             tmpLedger = G_ledger.copy()
-            tmpLedger[G_keyIntro['Key']] = 100000000
+            tmpLedger[G_keyIntro['Key']] = 10000000
             hashedLedger = getmd5(json.dumps(tmpLedger, sort_keys=True))
             if hashedLedger != G_keyIntro['LedgerHash']:
                 logging.warning(
@@ -675,11 +676,10 @@ def introduceKeyToLedger(kwargs):
     if key not in G_privateKeys:
         return {'Fail': {'Reason': 'Invalid key'}}
     keyproof = key + '_' + str(G_privateKeys[key])
-    logging.info('====> keyproof: {}'.format(keyproof))
     if keyproof in G_ledger:
         return {'Fail': {'Reason': 'Key already in ledger'}}
     newLedger = G_ledger.copy()
-    newLedger[keyproof] = 100000000
+    newLedger[keyproof] = 10000000
     chksum = getmd5(json.dumps(newLedger, sort_keys=True))
     signatures = signWithKeys(
         logging,
@@ -689,11 +689,8 @@ def introduceKeyToLedger(kwargs):
         chksum,
         G_password)
     message = {
-        'Type': 'REQ_INTRO_KEY',
-        'Data': {
-            'Key': keyproof,
-            'Checksum': chksum,
-            'Sig': signatures[key]}}
+        'Type': 'REQ_INTRO_KEY', 'Data': {
+            'Key': keyproof, 'Checksum': chksum, 'Sig': signatures[key]}}
 
     results = sendReceiveToMany(message, getRemoteIps())
     # collect all the valid data
@@ -865,8 +862,8 @@ def main():
             peersResponse = updatePeerServer(initial=True)
             maps = peersResponse['Maps']
             for key, val in maps.items():
-                # Check if we already have the key in our file
-                if key in G_peers:
+                # Check if we already have the key in our file and with the same ip
+                if key in G_peers and val['Ip'] == G_peers[key]['Ip']:
                     continue
                 # Check the proof of work of the key.
                 if not isValidProof(key, val['Proof']):

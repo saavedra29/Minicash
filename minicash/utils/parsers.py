@@ -70,7 +70,7 @@ def isValidLedger(ledger):
             balancesSum = 0
             for balance in ledger.values():
                 balancesSum += balance
-            if balancesSum / numOfKeys != 100000000:
+            if balancesSum / numOfKeys != 10000000:
                 return False
     return True
 
