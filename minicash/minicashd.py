@@ -49,7 +49,6 @@ class MyCliHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self.request.recv(64000)
 
-        dispatcher.add_method(init)
         dispatcher.add_method(getLedger)
         dispatcher.add_method(listLocalKeys)
         dispatcher.add_method(listPeers)
@@ -267,7 +266,8 @@ def init(kwargs):
             os.mkdir('.minicash')
         os.chdir(kwargs['Homedir'] + '/.minicash')
     except OSError as e:
-        return {'Fail': {'Reason': 'IOError accessing data folder', 'Message': str(e)}}
+        print('OSError accessing or creating data folder: {}'.format(e))
+        stop()
 
     # Create configuration file
     if not os.path.isfile('config.json'):
@@ -285,7 +285,8 @@ def init(kwargs):
             with open('config.json', 'w') as conffile:
                 conffile.write(jsonedConfig)
         except OSError as e:
-            return {'Fail': {'Reason': 'Error writting initial configuration', 'Message': str(e)}}
+            print('Error writting initial configuration:'.format(e))
+            stop()
 
     # Take care of key files and .gnupg folder
     try:
@@ -305,7 +306,8 @@ def init(kwargs):
             os.mkdir('.gnupg')
             os.chmod('.gnupg', 0o700)
     except OSError as e:
-        return {'Fail': {'Reason': 'OSError', 'Message': str(e)}}
+        print(e)
+        stop()
 
     return {'Success': {}}
 

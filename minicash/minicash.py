@@ -43,10 +43,6 @@ def runCommand(commandName, args):
     return response['result']
 
 
-def init(args):
-    pp.pprint(runCommand(inspect.stack()[0][3], args))
-
-
 def listLocalKeys(args):
     pp.pprint(runCommand(inspect.stack()[0][3], args))
 
@@ -97,9 +93,6 @@ def stop(args):
 ## COMMAND LINE PARSER
 parser = argparse.ArgumentParser()
 subparser = parser.add_subparsers()
-# init subcommand
-init_cmd = subparser.add_parser('init', help='Create new, fresh file structure')
-init_cmd.set_defaults(func=init)
 # list-nodes subcommand
 listnodes_cmd = subparser.add_parser('listpeers', help='List all online nodes in the network')
 listnodes_cmd.set_defaults(func=listPeers)
