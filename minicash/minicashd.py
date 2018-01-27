@@ -27,6 +27,7 @@ from utils.gpg import signWithKeys
 from utils.gpg import getKeysThatSignedData
 
 # Global variables
+DIFFICULTY = 6
 noPid = False
 PIDPATH = "/tmp/minicashd.pid"
 G_status = None
@@ -92,7 +93,7 @@ class MainServerProtocol(asyncio.Protocol):
                 proof = entry['ProofOfWork']
                 if fprint in G_peers:
                     continue
-                if not isValidProof(fprint, proof):
+                if not isValidProof(fprint, proof, DIFFICULTY):
                     logging.warning('The key {} is rejected because of wrong proof of work'.format(
                         fprint))
                     continue
@@ -159,7 +160,7 @@ class MainServerProtocol(asyncio.Protocol):
                 logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
             numberOfKeysThatVote = len(G_peers)
             positiveVotes = len(validKeys)
-            if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
+            if not positiveVotes > 66 / 100 * numberOfKeysThatVote:
                 logging.warning(ptype + ': Not enough signatures of key intro voting')
                 self.transport.close()
                 return
@@ -234,7 +235,7 @@ class MainServerProtocol(asyncio.Protocol):
                 logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
             numberOfKeysThatVote = len(G_peers)
             positiveVotes = len(validKeys)
-            if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
+            if not positiveVotes > 66 / 100 * numberOfKeysThatVote:
                 logging.warning(ptype + 'server@REQ_PAY_END: Not enough signatures of transaction voting')
                 self.transport.close()
                 return
@@ -332,7 +333,7 @@ def addKey(kwargs):
         return {'Fail': {'Reason': 'Key not found in gpg database'}}
 
     # Check if pow is invalid for the key
-    if not isValidProof(fingerprint, proof):
+    if not isValidProof(fingerprint, proof, DIFFICULTY):
         return {'Fail': {'Reason': 'Wrong proof of work'}}
 
     # Add the key to the privateKeys
@@ -437,7 +438,7 @@ def send(kwargs):
     # check for the consesus
     numberOfKeysThatVote = len(G_peers)
     positiveVotes = len(totalKeysSigs)
-    if positiveVotes <= 67 / 100 * numberOfKeysThatVote:
+    if positiveVotes <= 66 / 100 * numberOfKeysThatVote:
         logging.info('-------- SEND REQUESTER: NEW TRANSACTION FAILED ----------')
         logging.info('{} ==> {} ({} cash)'.format(fromKey, toKey, amountAsked))
         logging.info('{} keys signed for the transaction out of {} keys that voted'.format(
@@ -586,7 +587,7 @@ def getConsesusValidLedger(ledgerResponces):
                     ledgersWithSignedKeys[ledger])))
     for ledger in ledgersWithSignedKeys:
         positiveVotes = len(ledgersWithSignedKeys[ledger])
-        if positiveVotes > 67 / 100 * numberOfKeysThatVote:
+        if positiveVotes > 66 / 100 * numberOfKeysThatVote:
             logging.info('-------- NEW VOTED LEDGER ----------')
             logging.info('Ledger: {}'.format(ledger))
             logging.info('{} keys signed for the ledger out of {} keys that voted'.format(
@@ -734,7 +735,7 @@ def introduceKeyToLedger(kwargs):
     # check for the consesus
     numberOfKeysThatVote = len(G_peers)
     positiveVotes = len(totalKeysSigs)
-    if not positiveVotes > 67 / 100 * numberOfKeysThatVote:
+    if not positiveVotes > 66 / 100 * numberOfKeysThatVote:
         logging.info('-------- KEY INTRO REQUESTER: NEW KEY FAILED TO ENTER THE LEDGER ----------')
         logging.info('Key: {}'.format(key))
         logging.info('{} keys signed for the key introduction out of {} keys that voted'.format(
@@ -898,7 +899,7 @@ def main():
                 if key in G_peers and val['Ip'] == G_peers[key]['Ip']:
                     continue
                 # Check the proof of work of the key.
-                if not isValidProof(key, val['Proof']):
+                if not isValidProof(key, val['Proof'], DIFFICULTY):
                     logging.info(
                         '#peersResponse: The key {} is rejected because of invalid proof of work'.format(key))
                     continue
@@ -927,6 +928,9 @@ def main():
             consesusLedger = getConsesusValidLedger(results)
             if consesusLedger is not None:
                 G_ledger = consesusLedger
+            else:
+                logging.error('There was no consesus for the ledger :(')
+                stop()
 
             logging.info('---MEMORY DATA----')
             logging.info('HOMEDIR: {}'.format(HOMEDIR))

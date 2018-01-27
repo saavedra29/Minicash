@@ -277,8 +277,8 @@ class TestValidPacket(unittest.TestCase):
             'Type':'RESP_LEDGER',
             'Data':{
 	            'Ledger':{
-			        'C4ED6700DFB2A1DF_2514606':100000000,
-			        'A22F2D8422520966_722303':100000000
+			        'C4ED6700DFB2A1DF_2514606':10000000,
+			        'A22F2D8422520966_722303':10000000
 			    },
 	            'Signatures':{
 				    'C4ED6700DFB2A1DF':'-----BEGIN PGP...',

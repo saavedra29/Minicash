@@ -10,9 +10,9 @@ def getsha256(data):
     datahash.update(data.encode('utf-8'))
     return datahash.hexdigest()
 
-def isValidProof(fprint, proof):
+def isValidProof(fprint, proof, difficulty):
     hashResult = getsha256(fprint + '_' + str(proof))
-    if not hashResult.startswith('00000'):
+    if not hashResult.startswith(difficulty * '0'):
         return False
     return True
 

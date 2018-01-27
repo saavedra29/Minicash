@@ -14,7 +14,8 @@ def getResponse(command):
         response = s.recv(64000)
         s.close()
     except ConnectionError:
-        print('Connection problem with the server. Probably the server is offline')
+        print('Connection problem with the server. Probably the server is offline, or there was'
+              ' no consesus for the ledger. Please check the minicash.log file')
         exit()
     return str(response, 'utf-8')
 

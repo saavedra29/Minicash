@@ -11,6 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from minicashd import init
 from utils.pow import POWGenerator
 
+G_difficulty = None
+
 def addKey(kwargs):
     fingerprint = kwargs['key']
     proof = kwargs['pow']
@@ -31,7 +33,7 @@ def addKey(kwargs):
     fingerproof = fingerprint + '_' + str(proof)
     keyhash.update(fingerproof.encode('utf-8'))
     hashResult = keyhash.hexdigest()
-    if not hashResult.startswith('00000'):
+    if not hashResult.startswith(G_difficulty * '0'):
         return {'Fail': {'Reason': 'Wrong proof of work'}}
 
     # Add the key to the privateKeys
@@ -65,7 +67,11 @@ def main():
     parser.add_argument('homedir', type=str, nargs='+',
                         help='Directory inside which .minicash folder should be created')
     parser.add_argument('keysnum', type=int, help='Number of keys to create')
+    parser.add_argument('difficulty', type=int, help='Number of zeros hash start')
     args = parser.parse_args()
+
+    global G_difficulty
+    G_difficulty = args.difficulty
 
     for path in args.homedir:
         HOMEDIR = path
@@ -106,7 +112,7 @@ def main():
             fingerprint = key.fingerprint[24:]
             print('key {} created'.format(num))
             # Create proof of work for the key (difficulty: 5, cores: maximum 8)
-            powGenerator = POWGenerator(fingerprint, 5, 8)
+            powGenerator = POWGenerator(fingerprint, G_difficulty, 8)
             result = powGenerator.getSolution()
             if result == None:
                 print('Proof of work interrupted and exiting')

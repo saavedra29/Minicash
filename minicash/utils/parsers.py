@@ -3,12 +3,12 @@ import sys
 import os
 import hashlib
 
-def isValidProof(fprint, proof):
+def isValidProof(fprint, proof, difficulty):
     keyhash = hashlib.sha256()
     fingerproof = fprint + '_' + str(proof)
     keyhash.update(fingerproof.encode('utf-8'))
     hashResult = keyhash.hexdigest()
-    if not hashResult.startswith('00000'):
+    if not hashResult.startswith(difficulty * '0'):
         return False
     return True
 
@@ -46,7 +46,7 @@ def isValidLedgerKey(s):
         proofint = int(proof)
     except ValueError:
         return False
-    if not isValidProof(fprint, proofint):
+    if not isValidProof(fprint, proofint, 6):
         return False
     return True
 

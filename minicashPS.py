@@ -53,7 +53,7 @@ class PeerHandler(socketserver.BaseRequestHandler):
                 partial = True
                 continue
             # Check for valid proof of work
-            if not isValidProof(fprint, proof):
+            if not isValidProof(fprint, proof, 6):
                 partial = True
                 continue
 
