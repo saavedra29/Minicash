@@ -29,6 +29,7 @@ from utils.gpg import getKeysThatSignedData
 # Global variables
 noPid = False
 PIDPATH = "/tmp/minicashd.pid"
+G_status = None
 G_privateKeys = {}
 G_configuration = {}
 G_peers = {}
@@ -313,6 +314,9 @@ def init(kwargs):
 
 
 def addKey(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
+        
     fingerprint = kwargs['key']
     proof = kwargs['pow']
     if 'gpgdir' in kwargs:
@@ -348,8 +352,9 @@ def addKey(kwargs):
         response = gpg.send_keys(keyserver, '0x' + fingerprint).stderr
         failureWords = ['ERROR', 'FAILURE']
         if not any(x in response for x in failureWords):
+            # update the other peers
             sendHello(fingerprint, proof)
-            # UPDATE ALSO THE PEER SERVER
+            # update the peer server
             updatePeerServer()
             return {'Success': {}}
 
@@ -358,14 +363,20 @@ def addKey(kwargs):
 
 
 def listPeers(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
     return {'Success': G_peers}
 
 
 def listLocalKeys(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
     return {'Success': G_privateKeys}
 
 
 def getBalances(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
     entries = {}
     for key in G_privateKeys.keys():
         ledgerKey = convertKey(key)
@@ -379,10 +390,14 @@ def getBalances(kwargs):
 
 
 def getLedger(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
     return {'Success': G_ledger}
 
 
 def send(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
     fromKey = kwargs['from']
     toKey = kwargs['to']
     amountAsked = kwargs['amount']
@@ -674,6 +689,8 @@ def updatePeerServer(initial=False):
 
 
 def introduceKeyToLedger(kwargs):
+    if G_status != 'Running':
+        return {'Fail': {'Reason': G_status}}
     key = kwargs['keytoadd']
     if key not in G_privateKeys:
         return {'Fail': {'Reason': 'Invalid key'}}
@@ -855,13 +872,26 @@ def main():
         dcontext.stderr = open(os.path.join(MINICASHDIR, 'minicash.err'), 'w+')
         print('Staring the daemon..')
         with dcontext:
+            statuses = [
+                'Asking peerserver for peers',
+                'Checking peers from peerserver response',
+                'Sending hello to remote peers',
+                'Retrieving the ledger',
+                'Running'
+            ]
             signal.signal(signal.SIGINT, interruptHandler)
             signal.signal(signal.SIGTERM, interruptHandler)
             nodeThread = threading.Thread(target=nodeServer)
             nodeThread.start()
+            cliThread = threading.Thread(target=cliServer)
+            cliThread.start()
+
+            global G_status
+            G_status = statuses.pop(0)
 
             # ---------  INITIAL CONNECTIONS ----------------
             peersResponse = updatePeerServer(initial=True)
+            G_status = statuses.pop(0)
             maps = peersResponse['Maps']
             for key, val in maps.items():
                 # Check if we already have the key in our file and with the same ip
@@ -884,9 +914,11 @@ def main():
                         G_peers[key], val['Ip'], val['Proof']))
 
             # Send hello to all nodes with peer list
+            G_status = statuses.pop(0)
             sendHello()
-
+            
             # Ask for ledger from the other nodes
+            G_status = statuses.pop(0)
             results = sendReceiveToMany({'Type': 'REQ_LEDGER', 'Data': {}}, getRemoteIps())
             logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
@@ -906,9 +938,7 @@ def main():
             logging.info('G_ledger: {}'.format(G_ledger))
             logging.info('G_password: {}'.format(G_password))
             logging.info('---END OF MEMORY DATA---')
-
-            cliThread = threading.Thread(target=cliServer)
-            cliThread.start()
+            G_status = statuses.pop(0)
 
     except DaemonOSEnvironmentError as e:
         print('ERROR: {}'.format(e))
