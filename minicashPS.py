@@ -102,6 +102,6 @@ if __name__ == '__main__':
         host = ''
     port = 9999
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((host, port), PeerHandler) as server:
-        server.serve_forever()
+    server = socketserver.TCPServer((host, port), PeerHandler)
+    server.serve_forever()
 

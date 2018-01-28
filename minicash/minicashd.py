@@ -492,8 +492,8 @@ def stop():
 def cliServer():
     HOST, PORT = "localhost", 2223
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((HOST, PORT), MyCliHandler) as server:
-        server.serve_forever()
+    server = socketserver.TCPServer((HOST, PORT), MyCliHandler)
+    server.serve_forever()
 
 
 def nodeServer():
