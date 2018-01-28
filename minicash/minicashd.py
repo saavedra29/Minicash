@@ -944,8 +944,7 @@ def main():
             if consesusLedger is not None:
                 G_ledger = consesusLedger
             else:
-                logging.error('There was no consesus for the ledger :(')
-                stop()
+                logging.warning('There was no consesus for the ledger :(')
 
             logging.info('---MEMORY DATA----')
             logging.info('HOMEDIR: {}'.format(HOMEDIR))
