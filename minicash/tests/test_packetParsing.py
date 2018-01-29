@@ -10,16 +10,16 @@ class TestLedgerKey(unittest.TestCase):
     def test_ledgerKey(self):
         correctCases = [
             'C4ED6700DFB2A1DF_2514606',
-            'A22F2D8422520966_722303'
+            'A22F2D8422520966_23753504'
         ]
 
         wrongCases = [
             'C4ED6700DFB2A1DT_2514606',  # wrong key format
-            'A22F2D8422520966_3554529',  # wrong proof
+            'A22F2D8422520966_2375504',  # wrong proof
             'C4ED6700DFB2A1DF&2514606',
-            'A22F2D842252096_722303',
+            'A22F2D842252096_23753504',
             'C4ED6700DFB2A1DF_-30',
-            'A22F2D8422520966722303'
+            'A22F2D842252096623753504'
         ]
         
         for case in correctCases:
@@ -34,42 +34,56 @@ class TestValidPacket(unittest.TestCase):
         packet = 'kdlfdfjdklfjldf'
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_True(self):
         packet = True
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_None(self):
         packet = None
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_int(self):
         packet = 34441
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_emptyDict(self):
         packet = {}
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_list(self):
         packet = ['Aris', 4554]
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_key(self):
         packet = {
                 'hype': 'HELLO',
                 'Data': [
                     {'Fingerprint':'C4ED6700DFB2A1DF', 'ProofOfWork':2514606},
-                    {'Fingerprint':'A22F2D8422520966', 'ProofOfWork':722303}
+                    {'Fingerprint':'A22F2D8422520966', 'ProofOfWork':23753504}
                 ]           
         }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_type_val(self):
         packet = {
@@ -77,7 +91,7 @@ class TestValidPacket(unittest.TestCase):
                 'Data':{
                     'Ledger':{
                         'C4ED6700DFB2A1DF_2514606':45423343,
-                        'A22F2D8422520966_722303':45560343
+                        'A22F2D8422520966_23753504':45560343
                     },
                     'Signatures':{
                         'C4ED6700DFB2A1DF':'-----BEGIN PGP...',
@@ -87,14 +101,16 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_dataKey(self):
         packet = {
                 'Type':'RESP_LEDGER',
                 'Data':{
                     'Ledge':{
-                        'C4ED6700DFB2A1DF_2514606':100000000,
-                        'A22F2D8422520966_722303':100000000
+                        'C4ED6700DFB2A1DF_2514606':10000000,
+                        'A22F2D8422520966_23753504':10000000
                     },
                     'Signatures':{
                         'C4ED6700DFB2A1DF':'-----BEGIN PGP...',
@@ -104,6 +120,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_invalidTokey(self):
         packet = {
@@ -118,6 +136,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_longChecksum(self):
         packet = {
@@ -132,6 +152,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_invalidDataKey(self):
         packet = {
@@ -146,6 +168,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_invalidAmountType(self):
         packet = {
@@ -160,6 +184,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_extraKeyResult(self):
         packet = {
@@ -175,6 +201,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_typeMissing(self):
         packet = {
@@ -188,6 +216,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_ledgerNonIntVal(self):
         packet = {
@@ -195,7 +225,7 @@ class TestValidPacket(unittest.TestCase):
                 'Data':{
                     'Ledger':{
                         'C4ED6700DFB2A1DF_2514606':100000000.34,
-                        'A22F2D8422520966_722303':99999999.66
+                        'A22F2D8422520966_23753504':99999999.66
                     },
                     'Signatures':{
                         'C4ED6700DFB2A1DF':'-----BEGIN PGP...',
@@ -205,6 +235,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_wrongProof(self):
         packet = {
@@ -212,7 +244,7 @@ class TestValidPacket(unittest.TestCase):
                 'Data':{
                     'Ledger':{
                         'C4ED6700DFB2A1DF_2513606':100000000,
-                        'A22F2D8422520966_722303':100000000
+                        'A22F2D8422520966_23753504':100000000
                     },
                     'Signatures':{
                         'C4ED6700DFB2A1DF':'-----BEGIN PGP...',
@@ -222,6 +254,8 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_wrong_separator(self):
         packet = {
@@ -229,7 +263,7 @@ class TestValidPacket(unittest.TestCase):
                 'Data':{
                     'Ledger':{
                         'C4ED6700DFB2A1DF&2514606':100000000,
-                        'A22F2D8422520966_722303':100000000
+                        'A22F2D8422520966_23753504':100000000
                     },
                     'Signatures':{
                         'C4ED6700DFB2A1DF':'-----BEGIN PGP...',
@@ -239,17 +273,21 @@ class TestValidPacket(unittest.TestCase):
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
         
     def test_negativeProof(self):
         packet = {
                 'Type': 'HELLO',
                 'Data': [
                     {'Fingerprint':'C4ED6700DFB2A1DF', 'ProofOfWork':-2514606},
-                    {'Fingerprint':'A22F2D8422520966', 'ProofOfWork':722303}
+                    {'Fingerprint':'A22F2D8422520966', 'ProofOfWork':23753504}
                 ]           
             }
         parser = PacketParser(packet)
         self.assertFalse(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
 ## TEST CORRECT PACKETS
         
@@ -258,11 +296,13 @@ class TestValidPacket(unittest.TestCase):
             'Type': 'HELLO',
             'Data': [
                 {'Fingerprint':'C4ED6700DFB2A1DF', 'ProofOfWork':2514606},
-	            {'Fingerprint':'A22F2D8422520966', 'ProofOfWork':722303}
+	            {'Fingerprint':'A22F2D8422520966', 'ProofOfWork':23753504}
             ]           
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctReqLedger(self):
         message = {
@@ -271,6 +311,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctRespLedger(self):
         message = {
@@ -278,7 +320,7 @@ class TestValidPacket(unittest.TestCase):
             'Data':{
 	            'Ledger':{
 			        'C4ED6700DFB2A1DF_2514606':10000000,
-			        'A22F2D8422520966_722303':10000000
+			        'A22F2D8422520966_23753504':10000000
 			    },
 	            'Signatures':{
 				    'C4ED6700DFB2A1DF':'-----BEGIN PGP...',
@@ -288,6 +330,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctReqIntroKey(self):
         message = {
@@ -300,6 +344,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctRespIntroKey(self):
         message = {
@@ -314,6 +360,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctReqIntroKeyEnd(self):
         message = {
@@ -328,6 +376,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctReqPay(self):
         message = {
@@ -342,6 +392,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctRespPay(self):
         message = {
@@ -356,6 +408,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
     def test_correctReqPayEnd(self):
         message = {
@@ -370,6 +424,8 @@ class TestValidPacket(unittest.TestCase):
         }
         parser = PacketParser(message)
         self.assertTrue(parser.isPacketValid())
+        if parser.errorMessage != None:
+            print('Error: {}'.format(parser.errorMessage))
 
 
 

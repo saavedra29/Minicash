@@ -120,7 +120,7 @@ class PacketParser:
                     if type(val) is not dict:
                         self.errorMessage = 'HELLO: element in Data list is not dict'
                         return False
-                    if not ['Fingerprint', 'ProofOfWork'] == list(val.keys()):
+                    if not set(['Fingerprint', 'ProofOfWork']) == set(list(val.keys())):
                         self.errorMessage = 'HELLO: Wrong Data keys'
                         return False
                     if type(val['Fingerprint']) is not str:
