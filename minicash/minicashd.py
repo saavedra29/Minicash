@@ -275,7 +275,7 @@ def init(kwargs):
     # Create configuration file
     if not os.path.isfile('config.json'):
         config = {
-            'PEER_SERVER': {'Ip': '192.168.0.20', 'Port': '9999'},
+            'PEER_SERVER': {'Ip': 'saav29.ddns.net', 'Port': '9999'},
             'KEY_SERVERS': {'adresses': [
                 'pgp.mit.edu',
                 'sks-keyservers.net',
