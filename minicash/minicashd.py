@@ -358,7 +358,8 @@ def addKey(kwargs):
             sendHello(fingerprint, proof)
             # update the peer server
             updatePeerServer()
-            return {'Success': {}}
+            return {'Success': {'Info': 'Please restart the program to get updated for the key'
+                    ' you added'}}
 
     del(G_privateKeys[fingerprint])
     return {'Fail': {'Reason': 'Problem uploading key to server'}}
