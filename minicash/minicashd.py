@@ -76,7 +76,7 @@ class MainServerProtocol(asyncio.Protocol):
     def data_received(self, data):
         global G_ledger
         try:
-            message = json.loads(data)
+            message = json.loads(data.decode('utf-8'))
         except json.JSONDecodeError as e:
             self.transport.close()
             return
