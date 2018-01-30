@@ -101,7 +101,6 @@ ENV/
 .mypy_cache/
 
 # custom files
-peersFile.txt
 todo.txt
 docs.txt
 
