@@ -369,14 +369,17 @@ def send(kwargs):
     amountAsked = kwargs['amount']
     res =  isTransactionValid(fromKey, toKey, amountAsked)
     if 'Fail' in res:
-        return {'Fail':{'Reason': res['Fail']['Reason']}}
+        return {'Fail':{'Invalid transaction'}}
+        # return {'Fail':{'Reason': res['Fail']['Reason']}}
     transactionResult = doTransaction(fromKey, toKey, convert(amountAsked), G_ledger)
     if 'Fail' in transactionResult:
-        return {'Fail':{'Reason':{transaction['Fail']['Reason']}}}
+        return {'Fail':{'Invalid transaction'}}
+        # return {'Fail':{'Reason':{transaction['Fail']['Reason']}}}
     hashedLedger = getmd5(json.dumps(transactionResult['Ledger'], sort_keys=True))
     signaturesDict = signWithKeys(logging, GPGDIR, G_privateKeys, [fromKey], hashedLedger, G_password)
     if not fromKey in signaturesDict:
-        return {'Fail':{'Reason':'Probably you have used wrong password'}}
+        return {'Fail':{'Invalid transaction'}}
+        # return {'Fail':{'Reason':'Probably you have used wrong password'}}
     message = {'Type':'REQ_PAY', 'Data': {
         'Fromkey': fromKey, 'Tokey': toKey, 'Amount': amountAsked,
         'Checksum': hashedLedger, 'Sig': signaturesDict[fromKey]
