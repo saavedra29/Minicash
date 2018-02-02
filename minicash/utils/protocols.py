@@ -35,7 +35,7 @@ def sendReceiveToMany(message, ips):
         future = asyncio.Future()
         try:
             await loop.create_connection(lambda: RequestResponseProtocol(future, message), ip , 2222)
-        except ConnectionRefusedError:
+        except (OSError, ConnectionRefusedError):
             return
         await future
         return future
