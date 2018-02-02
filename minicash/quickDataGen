@@ -83,7 +83,11 @@ def main():
         if os.path.isdir(MINICASHDIR):
             shutil.rmtree(MINICASHDIR)
             print('Old folder {} deleted'.format(MINICASHDIR))
-        Path(HOMEDIR).mkdir(parents=True, exist_ok=True)
+        try:
+            Path(HOMEDIR).mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            print('Error occured: {}'.format(str(e)))
+            exit()
         print('{} created'.format(HOMEDIR))
 
         # Create homedir
@@ -106,7 +110,7 @@ def main():
             # Create key
             key = gpg.gen_key(gpg.gen_key_input(key_type='RSA',
                                                 key_length=1024,
-                                                passphrase='mylongminicashsillypassphrase'))
+                                                passphrase=args.password))
             fingerprint = key.fingerprint[24:]
             print('key {} created'.format(num))
             # Create proof of work for the key (difficulty: 5, cores: maximum 8)
