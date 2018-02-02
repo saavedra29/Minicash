@@ -10,7 +10,7 @@ def init(kwargs):
             os.mkdir('.minicash')
         os.chdir(kwargs['Homedir'] + '/.minicash')
     except (OSError, PermissionError)as e:
-        return {'Fail':{'Reason': e}}
+        return {'Fail':{'Reason': str(e)}}
 
     # Create configuration file
     if not os.path.isfile('config.json'):
@@ -28,7 +28,7 @@ def init(kwargs):
             with open('config.json', 'w') as conffile:
                 conffile.write(jsonedConfig)
         except (OSError, PermissionError)as e:
-            return {'Fail':{'Reason': e}}
+            return {'Fail':{'Reason': str(e)}}
 
     # Take care of key files and .gnupg folder
     try:
@@ -48,7 +48,7 @@ def init(kwargs):
             os.mkdir('.gnupg')
             os.chmod('.gnupg', 0o700)
     except (OSError, PermissionError)as e:
-        return {'Fail':{'Reason': e}}
+        return {'Fail':{'Reason': str(e)}}
 
     return {'Success': {}}
 
