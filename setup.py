@@ -1,15 +1,14 @@
 from setuptools import setup
-from setuptools import find_packages
 
 setup(name='Minicash',
       version='0.1',
-      description='The funniest joke in the world',
-      url='http://github.com/storborg/funniest',
-      author='Flying Circus',
-      author_email='flyingcircus@example.com',
+      description='A cryptocurrency without blockchain',
+      url='http://github.com/saavedra29/Minicash',
+      author='Aristides Tomaras',
+      author_email='arisgold29@gmail.com',
       license='MIT',
       scripts=['minicash/minicash', 'minicash/minicashd', 'minicash/quickDataGen'], 
-      packages=['minicash', 'minicash.utils', 'minicash.tests'],
+      packages=['minicash', 'minicash.utils'],
       install_requires=[
           'json-rpc','python-daemon', 'python-gnupg', 'lockfile'
       ],
