@@ -24,7 +24,7 @@ How does he send 5 coins to Alice?
 Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 1. You can download it from [Pypi](https://pypi.org/search/?q=Minicash). Decompress the file in a folder and run `python setup.py install` from that folder.
 2. Alternatively you can download it straight from pip running `pip3 install Minicash`
-3. There are alse portable executable files to use [here](https://github.com/saavedra29/Minicash/releases). Download the `minicash_0_2_PortableOnefile.zip` file and extract the binary files inside it to the /usr/local/bin folder.
+3. There are alse portable executable files to use [here](https://github.com/saavedra29/Minicash/releases). Download the `minicash_0_2_PortableOnefile.zip` file and extract the binary files inside it to the `/usr/local/bin` folder.
 
 *Important notes*:
 - Using a virtualenv is strongly adviced. 
@@ -90,17 +90,17 @@ Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 
 ### How to use?
 *Prerequisites*:
-- Decide a **common** password that you'll be always using for **every** new gpg key you will create. Let's call it <mypassword>
-- Decide **inside which** folder you want the ".minicash" configuration folder to be placed. Let's name it <myinstallationfolderpath> (default is the linux user home folder).
+- Decide a **common** password that you'll be always using for **every** new gpg key you will create. Let's call it "mypassword"
+- Decide **inside which** folder you want the ".minicash" configuration folder to be placed. Let's name it "myinstallationfolderpath" (default is the linux user home folder).
 - **Attention**: Every path you pass to the command line must be the **full** path. 
 &nbsp;
 
 ##### *The hard way*:
 1. Make sure you are connected to the Internet.
 2. Run `minicashd --homedir <myinstallationfolderpath> <mypassword>` to boot the daemon.
-3. Create a GPG key pair: `gpg --homedir <myinstallationfolderpath>/.minicash/.gnupg --gen-key` using <mypassword> when asked for password.
-4. Run `gpg --homedir <myinstallationfolderpath>/.minicash/.gnupg --list-keys --keyid-format long | grep -Po 'pub   rsa2048/\K[A-Z0-9]*'` and note down the 16 character public key fingerprint of the output. Let's call it <myfingerprint>.
-5. Create proof of work running `minicash gen-pow 6 <myfingerprint>`. Wait for a while and let's name the output <proof>.
+3. Create a GPG key pair: `gpg --homedir <myinstallationfolderpath>/.minicash/.gnupg --gen-key` using "mypassword" when asked for password.
+4. Run `gpg --homedir <myinstallationfolderpath>/.minicash/.gnupg --list-keys --keyid-format long | grep -Po 'pub   rsa2048/\K[A-Z0-9]*'` and note down the 16 character public key fingerprint of the output. Let's call it "myfingerprint".
+5. Create proof of work running `minicash gen-pow 6 <myfingerprint>`. Wait for a while and let's name the output "proof".
 6. Add the key with the proof to minicash running `minicash add-key <myfingerprint> <proof>`.
 7. Introduce the key to the global ledger running `minicash introducekeytoledger <myfingerprint>`.
 8. Now you are ready to do your first transaction. You have 10 coins since your key was introduced to the ledger. Say you want to send 1.504 coins to the fingerpint 1559CBEBCB7E72B6. Run `minicash send <myfingerprint> 1559CBEBCB7E72B6 1.504`.
@@ -109,7 +109,7 @@ Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 ##### *The lazy way*:
 1. Run `quickDataGen 1 6 <mypassword> <myinstallationfolderpath>`
 2. Run `minicashd --homedir <myinstallationfolderpath> <mypassword>` to boot the daemon.
-3. Run `minicash listlocalkeys` and note down your 16 character fingerprint. Let's call it <myfingerprint>
+3. Run `minicash listlocalkeys` and note down your 16 character fingerprint. Let's call it "myfingerprint"
 4. Follow the "The hard way" above from step 7 until the end.
 &nbsp;
 
