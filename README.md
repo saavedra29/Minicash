@@ -92,6 +92,8 @@ Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 *Prerequisites*:
 - Decide a **common** password that you'll be always using for **every** new gpg key you will create. Let's call it "mypassword"
 - Decide **inside which** folder you want the ".minicash" configuration folder to be placed. Let's name it "myinstallationfolderpath" (default is the linux user home folder).
+- You need to do port forwarding at your router so that it sends all port 2222 incoming data to your node.
+- If you run a peer discovery server on the same computer you run a server node make sure to pass the --peerserver argument with the IP and not just "localhost".
 - **Attention**: Every path you pass to the command line must be the **full** path. 
 &nbsp;
 

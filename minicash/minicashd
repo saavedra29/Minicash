@@ -21,7 +21,6 @@ from minicash.utils.protocols import sendReceiveToMany
 from minicash.utils.client import simpleSend
 from minicash.utils.checksum import isValidProof
 from minicash.utils.checksum import getmd5
-from minicash.utils.parsers import isValidLedgerResponseFormat
 from minicash.utils.parsers import PacketParser
 from minicash.utils.parsers import isValidLedgerKey
 from minicash.utils.parsers import isValidFingerprint
