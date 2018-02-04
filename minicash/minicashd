@@ -28,7 +28,7 @@ from minicash.utils.gpg import signWithKeys
 from minicash.utils.gpg import getKeysThatSignedData
 
 # Global variables
-DIFFICULTY = 6
+DIFFICULTY = 7
 noPid = False
 PIDPATH = "/tmp/minicashd.pid"
 G_status = None
