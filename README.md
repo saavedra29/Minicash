@@ -24,7 +24,7 @@ How does he send 5 coins to Alice?
 Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 1. You can download it from [Pypi](https://pypi.org/search/?q=Minicash). Decompress the file in a folder and run `python setup.py install` from that folder.
 2. Alternatively you can download it straight from pip running `pip3 install Minicash`
-3. There are alse portable executable files to use [here](https://github.com/saavedra29/Minicash/releases). Download the `minicash_0_2_PortableOnefile.zip` file and extract the binary files inside it to the `/usr/local/bin` folder.
+3. There are alse portable executable files to use [here](https://github.com/saavedra29/Minicash/releases). Download the portable zip archive and extract the binary files inside it to the `/usr/local/bin` folder.
 
 *Important notes*:
 - Using a virtualenv is strongly adviced. 
