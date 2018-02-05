@@ -102,14 +102,14 @@ Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 2. Run `minicashd --homedir <myinstallationfolderpath> <mypassword>` to boot the daemon.
 3. Create a GPG key pair: `gpg --homedir <myinstallationfolderpath>/.minicash/.gnupg --gen-key` using "mypassword" when asked for password.
 4. Run `gpg --homedir <myinstallationfolderpath>/.minicash/.gnupg --list-keys --keyid-format long | grep -Po 'pub   rsa2048/\K[A-Z0-9]*'` and note down the 16 character public key fingerprint of the output. Let's call it "myfingerprint".
-5. Create proof of work running `minicash gen-pow 6 <myfingerprint>`. Wait for a while and let's name the output "proof".
+5. Create proof of work running `minicash gen-pow 7 <myfingerprint>`. Wait for a while and let's name the output "proof".
 6. Add the key with the proof to minicash running `minicash add-key <myfingerprint> <proof>`.
 7. Introduce the key to the global ledger running `minicash introducekeytoledger <myfingerprint>`.
 8. Now you are ready to do your first transaction. You have 10 coins since your key was introduced to the ledger. Say you want to send 1.504 coins to the fingerpint 1559CBEBCB7E72B6. Run `minicash send <myfingerprint> 1559CBEBCB7E72B6 1.504`.
 9. Congratulations! You've done your first transaction!
 
 ##### *The lazy way*:
-1. Run `quickDataGen 1 6 <mypassword> <myinstallationfolderpath>`
+1. Run `quickDataGen 1 7 <mypassword> <myinstallationfolderpath>`
 2. Run `minicashd --homedir <myinstallationfolderpath> <mypassword>` to boot the daemon.
 3. Run `minicash listlocalkeys` and note down your 16 character fingerprint. Let's call it "myfingerprint"
 4. Follow the "The hard way" above from step 7 until the end.
