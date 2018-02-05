@@ -20,6 +20,10 @@ How does he send 5 coins to Alice?
 7. Each peer checks if the block received contains signatures from more than 66% of the total peers and if yes then the transaction is valid so the peer renews his ledger according to the transcation.
 &nbsp;
 
+### How are coins created?
+There is no mining. Coins are born every time a new GPG key fingerprint is introduced in the legder together with a proof of work. The proof of work is an integer that when sticked to the end of the fingerprint with a “_” between them creates a string that its sha256 hash starts with a specified number of zeros. For example: “fingerprint"_"proof of work”.
+So each time a new key fingerprint, accompanied with proof of work, enters the ledger 10 fresh coins are added on its balance.
+
 ### How to install?
 Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 1. You can download it from [Pypi](https://pypi.org/search/?q=Minicash). Decompress the file in a folder and run `python setup.py install` from that folder.
