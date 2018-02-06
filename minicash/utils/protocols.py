@@ -22,7 +22,10 @@ class RequestResponseProtocol(asyncio.Protocol):
         transport.write(messageJson.encode('utf-8'))
 
     def data_received(self, data):
-        response = json.loads(data.decode('utf-8'))
+        try:
+            response = json.loads(data.decode('utf-8'))
+        except json.decoder.JSONDecodeError:
+            response = None
         self.transport.close()
         self.future.set_result(response)
     
