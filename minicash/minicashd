@@ -253,9 +253,7 @@ class MainServerProtocol(asyncio.Protocol):
             logging.info('Success percentage: {}%'.format(
                 str(positiveVotes / numberOfKeysThatVote * 100)))
             G_ledger = ledgerCopy
-            
 
-        self.transport.close()
 
     def connection_lost(self, exc):
         self.transport.close()

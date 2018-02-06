@@ -26,7 +26,6 @@ class RequestResponseProtocol(asyncio.Protocol):
             response = json.loads(data.decode('utf-8'))
         except json.decoder.JSONDecodeError:
             response = None
-        self.transport.close()
         self.future.set_result(response)
     
     def connection_lost(self, exc):
