@@ -894,8 +894,11 @@ def main():
             results = sendReceiveToMany({'Type': 'REQ_LEDGER', 'Data': {}}, getRemoteIps())
             logging.info('--------- LEDGER RESPONSES ---------')
             for response in results:
-                logging.info('Ledger uninspected reponse received from keys {}'.format(
-                    response['Data']['Signatures'].keys()))
+                try:
+                    logging.info('Ledger uninspected reponse received from keys {}'.format(
+                        response['Data']['Signatures'].keys()))
+                except TypeError:
+                    pass
             consesusLedger = getConsesusValidLedger(results)
             if consesusLedger is not None:
                 G_ledger = consesusLedger
