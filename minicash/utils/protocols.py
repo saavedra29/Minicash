@@ -9,24 +9,31 @@ class RequestProtocol(asyncio.Protocol):
         self.transport = transport
         messageJson = json.dumps(self.message)
         transport.write(messageJson.encode('utf-8'))
+        transport.write_eof()
 
     
 class RequestResponseProtocol(asyncio.Protocol):
     def __init__(self, future, message):
         self.future = future
         self.message = message
+        self.fullMessage = bytes()
+        self.response = bytes()
 
     def connection_made(self, transport):
         self.transport = transport
         messageJson = json.dumps(self.message)
-        transport.write(messageJson.encode('utf-8'))
+        self.transport.write(messageJson.encode('utf-8'))
+        self.transport.write_eof()
 
     def data_received(self, data):
+        self.fullMessage += data
+
+    def eof_received(self):
         try:
-            response = json.loads(data.decode('utf-8'))
+            res = json.loads(self.fullMessage.decode('utf-8'))
         except json.decoder.JSONDecodeError:
-            response = None
-        self.future.set_result(response)
+            res = None
+        self.future.set_result(res)
     
     def connection_lost(self, exc):
         self.transport.close()

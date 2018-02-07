@@ -69,23 +69,30 @@ class MyCliHandler(socketserver.BaseRequestHandler):
 
 # Server handler
 class MainServerProtocol(asyncio.Protocol):
+    def __init__(self):
+        self.fullMessage = bytes()
+        self.response = bytes()
+
     def connection_made(self, transport):
         self.peername = transport.get_extra_info('peername')
         logging.info('Connection received from {}'.format(self.peername))
         self.transport = transport
 
     def data_received(self, data):
+        self.fullMessage += data
+        
+    def eof_received(self):
         global G_ledger
         try:
-            message = json.loads(data.decode('utf-8'))
+            pack = json.loads(self.fullMessage.decode('utf-8'))
         except json.JSONDecodeError as e:
-            self.transport.close()
+            self.transport.write_eof()
             return
 
-        parser = PacketParser(message)
+        parser = PacketParser(pack)
         if not parser.isPacketValid():
             logging.warning('Invalid packet => {}'.format(parser.errorMessage))
-            self.transport.close()
+            self.transport.write_eof()
             return
         ptype = parser.getType()
         pdata = parser.getData()
@@ -115,7 +122,7 @@ class MainServerProtocol(asyncio.Protocol):
             self.transport.write(ledgerResponse.encode('utf-8'))
 
         elif ptype == 'REQ_INTRO_KEY':
-            hashedReceivedMessage = getmd5(data.decode('utf-8'))
+            hashedReceivedMessage = getmd5(self.fullMessage.decode('utf-8'))
             reqIntroKeyResponse = {'Type': 'RESP_INTRO_KEY', 'Data': {
                 'Checksum': hashedReceivedMessage, 'Signatures': {}}}
             fprint = pdata['Key'][:16]
@@ -124,6 +131,7 @@ class MainServerProtocol(asyncio.Protocol):
                 logging.warning('The key {} can\'t be added to the ledger because is not in the'
                                 ' G_peers'.format(fprint))
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
+                self.transport.write_eof()
                 return
             newLedger = G_ledger.copy()
             newLedger[pdata['Key']] = 10000000
@@ -131,12 +139,14 @@ class MainServerProtocol(asyncio.Protocol):
             if not hashedNewLedger == pdata['Checksum']:
                 logging.warning('The checksums doesn\'t fit')
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
+                self.transport.write_eof()
                 return
             validKeys, _ = getKeysThatSignedData(
                 logging, GPGDIR, {fprint: pdata['Sig']}, pdata['Checksum'])
             if fprint not in validKeys:
                 logging.warning('Wrong signature')
                 self.transport.write(json.dumps(reqIntroKeyResponse).encode('utf-8'))
+                self.transport.write_eof()
                 return
             signaturesDict = signWithKeys(logging, GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),
                                           hashedReceivedMessage, G_password)
@@ -149,6 +159,7 @@ class MainServerProtocol(asyncio.Protocol):
         elif ptype == 'REQ_INTRO_KEY_END':
             if pdata['Checksum'] != G_keyIntro['MessageHash']:
                 logging.warning(ptype + ': Invalid checksum or key')
+                self.transport.write_eof()
                 return
             tmpLedger = G_ledger.copy()
             tmpLedger[G_keyIntro['Key']] = 10000000
@@ -156,7 +167,7 @@ class MainServerProtocol(asyncio.Protocol):
             if hashedLedger != G_keyIntro['LedgerHash']:
                 logging.warning(
                     ptype + ': G_ledger checksum won\'t agree with stored G_keyIntro checksum')
-                self.transport.close()
+                self.transport.write_eof()
                 return
             validKeys, _ = getKeysThatSignedData(
                 logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
@@ -164,7 +175,7 @@ class MainServerProtocol(asyncio.Protocol):
             positiveVotes = len(validKeys)
             if not positiveVotes > 66 / 100 * numberOfKeysThatVote:
                 logging.warning(ptype + ': Not enough signatures of key intro voting')
-                self.transport.close()
+                self.transport.write_eof()
                 return
             logging.info('-------- NEW KEY INTRODUCED TO THE LEDGER ----------')
             logging.info('Key: {}'.format(G_keyIntro['Key']))
@@ -176,8 +187,7 @@ class MainServerProtocol(asyncio.Protocol):
             G_ledger = tmpLedger
 
         elif ptype == 'REQ_PAY':
-            
-            hashedReceivedMessage = getmd5(data.decode('utf-8'))
+            hashedReceivedMessage = getmd5(self.fullMessage.decode('utf-8'))
 
             respPayMessage = {'Type': 'RESP_PAY', 'Data': {
                 'Checksum': hashedReceivedMessage, 'Signatures':{}
@@ -188,22 +198,26 @@ class MainServerProtocol(asyncio.Protocol):
             res = isTransactionValid(fromKey, toKey, amount)
             if 'Fail' in res:
                 self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                self.transport.write_eof()
                 return
             transactionResult = doTransaction(fromKey, toKey, convert(amount), G_ledger)
             if 'Fail' in transactionResult:
                 logging.warning('server@REQ_PAY: {}'.format(transactionResult['Fail']['Reason']))
                 self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                self.transport.write_eof()
                 return
             hashedLedger = getmd5(json.dumps(transactionResult['Ledger'], sort_keys=True))
             if hashedLedger != pdata['Checksum']:
                 logging.warning('server@REQ_PAY: Wrong checksum')
                 self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                self.transport.write_eof()
                 return
             validKeys, _ = getKeysThatSignedData(logging, GPGDIR, {fromKey:pdata['Sig']},
                                                     pdata['Checksum'])
             if fromKey not in validKeys:
                 logging.warning('server@REQ_PAY: Wrong signature')
                 self.transport.write(json.dumps(respPayMessage).encode('utf-8'))
+                self.transport.write_eof()
                 return
             signaturesDict = signWithKeys(logging, GPGDIR, G_privateKeys.keys(), G_privateKeys.keys(),
                                           hashedReceivedMessage, G_password)
@@ -218,20 +232,20 @@ class MainServerProtocol(asyncio.Protocol):
         elif ptype == 'REQ_PAY_END':
             if pdata['Checksum'] != G_transaction['MessageHash']:
                 logging.warning('server@REQ_PAY_END: Invalid checksum or key')
-                self.transport.close()
+                self.transport.write_eof()
                 return
             transactionResult = doTransaction(G_transaction['From'], G_transaction['To'],
                 convert(G_transaction['Amount']), G_ledger)
             if 'Fail' in transactionResult:
                 logging.warning('server@REQ_PAY_END: {}'.format(
                     transactionResult['Fail']['Reason']))
-                self.transport.close()
+                self.transport.write_eof()
                 return
             ledgerCopy = transactionResult['Ledger']
             hashedLedger = getmd5(json.dumps(ledgerCopy, sort_keys=True))
             if hashedLedger != G_transaction['LedgerHash']:
                 logging.info('server@REQ_PAY_END: wrong ledger hash')
-                self.transport.close()
+                self.transport.write_eof()
                 return
             validKeys, _ = getKeysThatSignedData(
                 logging, GPGDIR, pdata['Signatures'], pdata['Checksum'])
@@ -239,7 +253,7 @@ class MainServerProtocol(asyncio.Protocol):
             positiveVotes = len(validKeys)
             if not positiveVotes > 66 / 100 * numberOfKeysThatVote:
                 logging.warning(ptype + 'server@REQ_PAY_END: Not enough signatures of transaction voting')
-                self.transport.close()
+                self.transport.write_eof()
                 return
             logging.info('-------- NEW TRANSACTION DONE ----------')
             logging.info('{} ==> {} ({} cash)'.format(G_transaction['To'], G_transaction['From'],
@@ -254,6 +268,7 @@ class MainServerProtocol(asyncio.Protocol):
                 str(positiveVotes / numberOfKeysThatVote * 100)))
             G_ledger = ledgerCopy
 
+        self.transport.write_eof()
 
     def connection_lost(self, exc):
         self.transport.close()
