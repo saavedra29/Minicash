@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='Minicash',
-    version='0.3.1',
+    version='0.4.0',
     description='A cryptocurrency without blockchain',
     url='http://github.com/saavedra29/Minicash',
     author='Aristides Tomaras',
