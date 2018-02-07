@@ -803,7 +803,7 @@ def main():
             print('Wrong logging level')
             stop()
     else:
-        logLevel = 'WARNING'
+        logLevel = 'INFO'
     logging.basicConfig(format='%(asctime)s => (%(levelname)-8s) %(message)s', level=logLevel,
                         filename=os.path.join(MINICASHDIR, 'minicash.log'),
                         filemode='w')
