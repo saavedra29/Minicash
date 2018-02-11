@@ -21,7 +21,7 @@ How does he send 5 coins to Alice?
 &nbsp;
 
 ### How are coins created?
-There is no mining. Coins are born every time a new GPG key fingerprint is introduced in the legder together with a proof of work. The proof of work is an integer that when sticked to the end of the fingerprint with a “_” between them creates a string that its sha256 hash starts with a specified number of zeros. For example: “fingerprint"_"proof of work”.
+There is no mining. Coins are born every time a new GPG key fingerprint is introduced in the legder together with a proof of work. The proof of work is an integer that when sticked to the end of the fingerprint with a _ between them creates a string that its sha256 hash starts with a specified number of zeros. For example: fingerprint_proofOfWork.
 So each time a new key fingerprint, accompanied with proof of work, enters the ledger 10 fresh coins are added on its balance.
 
 ### How to install?
@@ -32,7 +32,7 @@ Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 
 *Important notes*:
 - Using a virtualenv is strongly adviced. 
-- Requires **dirmngr** to be installed from your Linux distribution's repositories for Minicash to be able to sign using the local gpg keyring.
+- Requires **dirmngr** to be installed from your Linux distribution's repositories for Minicash to be able to download/upload keys to/from keyservers.
 - Minicash uses the specific [MinicashPeerServer]( https://github.com/saavedra29/MinicashPeerServer) software for network peer discovery. You will need it if you intend to use Minicash on local networks.
 
 ### Components
