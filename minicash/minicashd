@@ -88,6 +88,8 @@ class MainServerProtocol(asyncio.Protocol):
         except json.JSONDecodeError as e:
             self.transport.write_eof()
             return
+        except UnicodeDecodeError:
+            pass
 
         parser = PacketParser(pack)
         if not parser.isPacketValid():
