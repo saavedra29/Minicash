@@ -85,11 +85,18 @@ class MainServerProtocol(asyncio.Protocol):
         global G_ledger
         try:
             pack = json.loads(self.fullMessage.decode('utf-8'))
-        except json.JSONDecodeError as e:
+        except UnicodeDecodeError as e:
+            logging.error('{}'.format(str(e)))
+            with open(MINICASHDIR + 'wrongmessage.txt', 'w') as wrongmessage:
+                wrongmessage.write(self.fullMessage)
             self.transport.write_eof()
             return
-        except UnicodeDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            logging.error('{}'.format(str(e)))
+            with open(MINICASHDIR + 'wrongmessage.txt', 'w') as wrongmessage:
+                wrongmessage.write(self.fullMessage)
+            self.transport.write_eof()
+            return
 
         parser = PacketParser(pack)
         if not parser.isPacketValid():
