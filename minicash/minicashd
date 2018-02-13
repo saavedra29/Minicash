@@ -597,8 +597,9 @@ def sendHello(fprint=None, proof=None):
             hello['Data'].append({'Fingerprint': key, 'ProofOfWork': G_privateKeys[key]})
     else:
         hello['Data'].append({'Fingerprint': fprint, 'ProofOfWork': proof})
-    hello = json.dumps(hello)
-    simpleSend(hello, getRemoteIps(), 2222, timeout=1)
+    # hello = json.dumps(hello)
+    # simpleSend(hello, getRemoteIps(), 2222, timeout=1)
+    sendToMany(hello, getRemoteIps())
     for ip in getRemoteIps():
         logging.info('Hello sent to {}'.format(ip))
 
