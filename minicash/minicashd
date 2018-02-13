@@ -91,7 +91,7 @@ class MainServerProtocol(asyncio.Protocol):
                 wrongmessage.write(self.fullMessage)
             self.transport.write_eof()
             return
-        except json.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError as e:
             logging.error('{}'.format(str(e)))
             with open(MINICASHDIR + 'wrongmessage.txt', 'w') as wrongmessage:
                 wrongmessage.write(self.fullMessage)
