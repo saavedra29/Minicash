@@ -753,7 +753,8 @@ def main():
     # Read the arguments of the command line
     args = parser.parse_args()
     if args.difficulty:
-        global DIFFICULTY = args.difficulty
+        global DIFFICULTY
+        DIFFICULTY = args.difficulty
 
     if args.nopid:
         global noPid
