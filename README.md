@@ -32,6 +32,7 @@ Minicash has been tested working on Linux with Python 3.5 and Python 3.6
 
 *Important notes*:
 - Using a virtualenv is strongly adviced. 
+- When `gpg` command is invoked gpg2 should run rather than gpg1.
 - Requires **dirmngr** to be installed from your Linux distribution's repositories for Minicash to be able to download/upload keys to/from keyservers.
 - Minicash uses the specific [MinicashPeerServer]( https://github.com/saavedra29/MinicashPeerServer) software for network peer discovery. You will need it if you intend to use Minicash on local networks.
 
