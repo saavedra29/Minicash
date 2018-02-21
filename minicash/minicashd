@@ -28,7 +28,7 @@ from minicash.utils.gpg import signWithKeys
 from minicash.utils.gpg import getKeysThatSignedData
 
 # Global variables
-DIFFICULTY = 7
+DIFFICULTY = 5
 noPid = False
 PIDPATH = "/tmp/minicashd.pid"
 G_status = None
@@ -746,15 +746,17 @@ def main():
     parser.add_argument('--homedir', help='Directory inside which .minicash should be located')
     parser.add_argument('--nopid', action='store_true', help='Run without pid file')
     parser.add_argument('password', help='Common password for all the GNUPG keys')
+    """
     parser.add_argument('--difficulty',
                         help='With how many zeros should proof of work hash start',
-                        type=int, choices=range(1,20), default=7)
-
-    # Read the arguments of the command line
-    args = parser.parse_args()
+                        type=int, choices=range(1,20), default=5)
     if args.difficulty:
         global DIFFICULTY
         DIFFICULTY = args.difficulty
+    """
+
+    # Read the arguments of the command line
+    args = parser.parse_args()
 
     if args.nopid:
         global noPid

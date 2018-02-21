@@ -46,7 +46,7 @@ def isValidLedgerKey(s):
         proofint = int(proof)
     except ValueError:
         return False
-    if not isValidProof(fprint, proofint, 6):
+    if not isValidProof(fprint, proofint, 5):
         return False
     return True
 
